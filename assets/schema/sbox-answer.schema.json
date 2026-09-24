@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "@spec-box/sdd role answer",
+  "type": "object",
+  "required": ["markdown", "result"],
+  "additionalProperties": false,
+  "properties": {
+    "markdown": { "type": "string", "description": "Полный ответ роли в Markdown без блока sbox-result" },
+    "result": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["готово", "утверждение", "заблокировано"] },
+        "blocker": {
+          "type": "object",
+          "properties": {
+            "category": { "type": "string", "enum": ["артефакт", "тесты", "реализация", "внешний", "пользователь", "нет"] },
+            "artifact": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        },
+        "size": { "type": "string", "enum": ["small", "normal", "large"] },
+        "skip_specs": { "type": "boolean" },
+        "complexity": {
+          "type": "object",
+          "properties": {
+            "implementation": { "type": "string", "enum": ["обычная", "высокая"] },
+            "review": { "type": "string", "enum": ["обычная", "высокая"] }
+          }
+        },
+        "questions": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "priority": { "type": "string", "enum": ["P0", "P1", "P2"] }, "text": { "type": "string" } } } },
+        "findings": { "type": "array", "items": { "type": "object", "properties": { "level": { "type": "string", "enum": ["blocking", "non-blocking"] }, "file": { "type": "string" }, "text": { "type": "string" } } } },
+        "checks": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "purpose": { "type": "string" }, "result": { "type": "string", "enum": ["PASS", "FAIL", "PARTIAL", "NOT_RUN"] }, "evidence": { "type": "string" } } } },
+        "gaps": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "environment": { "type": "string" }, "oracle": { "type": "string" }, "risk": { "type": "string" } } } },
+        "dispositions": { "type": "array", "items": { "type": "object", "properties": { "item": { "type": "string" }, "disposition": { "type": "string", "enum": ["satisfied", "manual_gap_accepted", "change_required", "blocked"] }, "reason": { "type": "string" } } } },
+        "delivery_narrative": { "type": "object", "properties": { "title": { "type": "string" }, "delta": { "type": "string" }, "why": { "type": "string" }, "preserved": { "type": "string" }, "rollout": { "type": "string" }, "rollback": { "type": "string" } } },
+        "protected": { "type": "array", "items": { "type": "string" } },
+        "verified": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

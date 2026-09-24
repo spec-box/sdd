@@ -1,0 +1,6 @@
+version: 1
+spec:
+  adapter: openspec
+changes:
+  dir: openspec/changes
+autonomy: supervised

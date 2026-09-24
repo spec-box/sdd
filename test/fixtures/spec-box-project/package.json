@@ -1,0 +1,1 @@
+{ "name": "demo-shop", "private": true, "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit", "lint": "eslint ." } }

@@ -1,0 +1,4 @@
+version: 1
+spec:
+  adapter: spec-box
+autonomy: supervised

@@ -1,0 +1,4 @@
+{
+  "api": { "host": "http://localhost:5059", "project": "demo" },
+  "yml": { "files": ["specs/**/*.spec-box.yml"] }
+}

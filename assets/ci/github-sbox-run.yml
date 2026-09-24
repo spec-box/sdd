@@ -1,0 +1,85 @@
+# @spec-box/sdd: headless-запуск изменения в GitHub Actions (docs/design.md, раздел 13).
+# Триггеры: ручной запуск, расписание и команды в комментариях пул-реквеста (/sbox approve|reject).
+name: sbox run
+
+on:
+  workflow_dispatch:
+    inputs:
+      change:
+        description: Идентификатор изменения
+        required: true
+      runner:
+        description: claude | codex
+        default: claude
+  schedule:
+    - cron: '*/30 * * * *'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sbox-${{ github.event.inputs.change || github.event.issue.number || 'schedule' }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.event_name != 'issue_comment' || startsWith(github.event.comment.body, '/sbox ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Для issue_comment нужна ветка пул-реквеста: её определяет шаг ниже.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+      - name: Определить изменение и ветку
+        id: change
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            BRANCH=$(gh pr view ${{ github.event.issue.number }} --json headRefName -q .headRefName)
+            git fetch origin "$BRANCH" && git checkout "$BRANCH"
+            echo "change=${BRANCH#sbox/}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.change }}" ]; then
+            BRANCH="sbox/${{ github.event.inputs.change }}"
+            git fetch origin "$BRANCH" && git checkout "$BRANCH" || git checkout -b "$BRANCH"
+            echo "change=${{ github.event.inputs.change }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "change=" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Установить зависимости проекта и @spec-box/sdd
+        run: |
+          pnpm install --frozen-lockfile
+          npm install -g @spec-box/sdd
+      - name: Продвинуть гейты из комментариев
+        if: steps.change.outputs.change != ''
+        run: sbox gates poll --change "${{ steps.change.outputs.change }}" --json || true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Запустить @spec-box/sdd
+        if: steps.change.outputs.change != ''
+        run: sbox run --change "${{ steps.change.outputs.change }}" --runner "${{ github.event.inputs.runner || 'claude' }}" --json
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Сохранить состояние изменения
+        if: always() && steps.change.outputs.change != ''
+        run: |
+          git config user.name "sbox-bot"
+          git config user.email "sbox-bot@users.noreply.github.com"
+          git add -A .sbox && git commit -qm "sbox: состояние изменения ${{ steps.change.outputs.change }}" || true
+          git push origin HEAD
+      - name: Доставить, если изменение готово
+        if: steps.change.outputs.change != ''
+        run: sbox deliver --change "${{ steps.change.outputs.change }}" --check --json && sbox deliver --change "${{ steps.change.outputs.change }}" --json || true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

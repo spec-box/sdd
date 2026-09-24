@@ -1,0 +1,66 @@
+{
+  "name": "@spec-box/sdd",
+  "version": "0.6.4",
+  "description": "@spec-box/sdd: автономная реализация продуктовых фич ИИ-агентами",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spec-box/sdd.git"
+  },
+  "homepage": "https://github.com/spec-box/sdd#readme",
+  "bugs": {
+    "url": "https://github.com/spec-box/sdd/issues"
+  },
+  "bin": {
+    "sbox": "bin/sbox.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "README.md",
+    "docs/design.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/cli/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "tsc -p tsconfig.json && vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.268",
+    "commander": "^15.0.0",
+    "fast-glob": "^3.3.3",
+    "picomatch": "^4.0.7",
+    "yaml": "^2.9.0",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/picomatch": "^4.0.3",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "keywords": [
+    "ai-agents",
+    "spec-driven",
+    "spec-box",
+    "claude-code",
+    "codex",
+    "autonomous-development",
+    "sdd",
+    "spec-driven-development"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "author": "Dmitry Andriyanov"
+}

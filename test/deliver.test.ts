@@ -106,6 +106,9 @@ describe('доставка', () => {
     const archived = loadChange(result.archivedTo);
     expect(archived.status).toBe('done');
     expect(archived.delivery?.state).toBe('done');
+    // runs/ в архив не попадает, а narrative ревьюера сохранён в change.yaml: повтор доставки ниже собирает текст без result.md.
+    expect(fs.existsSync(path.join(result.archivedTo, 'runs'))).toBe(false);
+    expect(archived.delivery_narrative?.title).toBe('Поиск с подсказками на главной');
     // повтор: тот же intent, коммит переиспользуется
     const again = await deliverChange({ root, config, dir: result.archivedTo, change: loadChange(result.archivedTo), adapter, host });
     expect(again.receipt.reused.commit).toBe(true);

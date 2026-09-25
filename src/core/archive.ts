@@ -26,6 +26,8 @@ export function isEmptyTree(dir: string): boolean {
  * Архивация (docs/design.md, «Архивация до мержа»): проверки до любых записей, снимок затронутых файлов истины,
  * применение дельт, структурная проверка результата, перенос папки; любая ошибка откатывает истину к снимку.
  * Повторный запуск после сбоя даёт тот же результат, что и однократный успешный: применение дельт идемпотентно.
+ * Папка runs/ (ответы ролей, квитанции) в архив не попадает, если не включено archive.runs: всё нужное после доставки
+ * (запуски, стоимость, delivery_narrative) уже записано в change.yaml.
  */
 export async function archiveChange(
   root: string,
@@ -85,6 +87,7 @@ export async function archiveChange(
     saveChange(dir, change);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.renameSync(dir, target);
+    if (!config.archive.runs) fs.rmSync(path.join(target, 'runs'), { recursive: true, force: true });
   } catch (e) {
     rollback();
     throw e instanceof SboxError ? e : new SboxError('ARCHIVE_FAILED', `Архивация прервана, истина спецификаций восстановлена: ${(e as Error).message}`);

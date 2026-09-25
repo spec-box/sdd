@@ -35,7 +35,7 @@ export interface DeliverResult {
   prBody: string;
 }
 
-/** Последний ответ ревьюера в фазе review с delivery_narrative. */
+/** Последний ответ ревьюера в фазе review с delivery_narrative; после архивации (runs/ удалён) берётся narrative из change.yaml. */
 export function lastReviewResult(dir: string, change: Change): RoleResult | null {
   const runs = [...change.runs].reverse().filter((r) => r.role === 'reviewer' && r.phase === 'review' && r.status === 'done');
   for (const r of runs) {
@@ -47,6 +47,7 @@ export function lastReviewResult(dir: string, change: Change): RoleResult | null
       continue;
     }
   }
+  if (change.delivery_narrative) return { status: 'готово', delivery_narrative: change.delivery_narrative };
   return null;
 }
 

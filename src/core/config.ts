@@ -90,6 +90,8 @@ export const configSchema = z.object({
   /** Проверка подключения по образцу: advisory (пункты PARTIAL для ревьюера) или strict (ошибка верификации). */
   wiring: z.object({ strict: z.boolean().default(false) }).prefault({}),
   changes: z.object({ dir: z.string().default('.sbox/changes') }).prefault({}),
+  /** Архивация: класть ли runs/ (ответы ролей и квитанции) в архив; по умолчанию нет, история остаётся в ветке изменения и в change.yaml. */
+  archive: z.object({ runs: z.boolean().default(false) }).prefault({}),
   project: z.object({ docs: z.string().default('.sbox/project'), wiki: z.string().default('.sbox/wiki') }).prefault({}),
   testing: z
     .object({

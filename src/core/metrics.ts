@@ -7,7 +7,7 @@ import type { Config } from './config.js';
 /**
  * Метрики работы решателя по одному изменению: время агентов и ожидания человека,
  * запуски и стоимость, возвраты и вмешательства, оценка результата человеком.
- * Считаются из change.yaml и receipt.json, ничего не хранится отдельно.
+ * Считаются из change.yaml (список запусков переживает архивацию без runs/) и receipt.json, пока папка runs есть; ничего не хранится отдельно.
  */
 export interface PhaseMetrics {
   runs: number;
@@ -52,28 +52,36 @@ function minutes(a: string | null | undefined, b: string | null | undefined): nu
   return Number.isFinite(ms) && ms >= 0 ? ms / 60_000 : null;
 }
 
-function readReceipts(dir: string): Receipt[] {
+function readRuns(dir: string, change: Change): Receipt[] {
+  const byId = new Map<string, Receipt>();
+  for (const r of change.runs) byId.set(r.id, { id: r.id, role: r.role, phase: r.phase, started: r.started ?? null, finished: r.finished ?? null, cost_usd: r.cost_usd ?? null, status: r.status });
   const runs = path.join(dir, 'runs');
-  if (!exists(runs)) return [];
-  return fs
-    .readdirSync(runs, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
+  if (exists(runs)) {
+    for (const e of fs.readdirSync(runs, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
       const rdir = path.join(runs, e.name);
       const receiptFile = path.join(rdir, 'receipt.json');
       const packetFile = path.join(rdir, 'packet.json');
       const resultFile = path.join(rdir, 'result.md');
       const receipt = exists(receiptFile) ? (JSON.parse(readText(receiptFile)) as Partial<Receipt>) : {};
+      const base = byId.get(e.name) ?? { id: e.name, role: '', phase: '', started: null, finished: null, cost_usd: null, status: 'done' };
       // В интерактивном режиме время старта это момент выдачи пакета, окончания это момент записи ответа.
-      const started = receipt.started ?? (exists(packetFile) ? fs.statSync(packetFile).mtime.toISOString() : null);
-      const finished = receipt.finished ?? (exists(resultFile) ? fs.statSync(resultFile).mtime.toISOString() : null);
-      return { id: e.name, role: receipt.role ?? '', phase: receipt.phase ?? '', started, finished, cost_usd: receipt.cost_usd ?? null, status: receipt.status ?? 'done' };
-    })
-    .sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
+      byId.set(e.name, {
+        ...base,
+        role: base.role || (receipt.role ?? ''),
+        phase: base.phase || (receipt.phase ?? ''),
+        status: receipt.status ?? base.status,
+        started: receipt.started ?? base.started ?? (exists(packetFile) ? fs.statSync(packetFile).mtime.toISOString() : null),
+        finished: receipt.finished ?? base.finished ?? (exists(resultFile) ? fs.statSync(resultFile).mtime.toISOString() : null),
+        cost_usd: receipt.cost_usd ?? base.cost_usd,
+      });
+    }
+  }
+  return [...byId.values()].sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
 }
 
 export function changeMetrics(dir: string, change: Change): ChangeMetrics {
-  const receipts = readReceipts(dir);
+  const receipts = readRuns(dir, change);
   const phases: Record<string, PhaseMetrics> = {};
   let agentMinutes = 0;
   let cost = 0;

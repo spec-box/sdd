@@ -127,6 +127,8 @@ export const changeSchema = z.object({
   reviewed_digest: z.string().nullable().default(null),
   verification: z.object({ run: z.string(), checks: z.array(checkSchema), gaps: z.array(gapSchema) }).nullable().default(null),
   accepted_gaps: z.array(z.object({ item: z.string(), reason: z.string().optional() })).default([]),
+  /** delivery_narrative из последнего принятого ответа ревьюера: текст пул-реквеста не зависит от папки runs/, которая не архивируется. */
+  delivery_narrative: z.object({ title: z.string(), delta: z.string(), why: z.string(), preserved: z.string().optional(), rollout: z.string().optional(), rollback: z.string().optional() }).nullable().default(null),
   delivery: z
     .object({
       intent_key: z.string(),

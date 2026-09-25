@@ -40,6 +40,20 @@ describe('атомарная архивация', () => {
     expect(checkOpenSpecTruth([parseSpecFile(spec, 'auth', 'x')])).toEqual([]);
   });
 
+  it('runs/ не переносится в архив, archive.runs: true оставляет', async () => {
+    for (const keep of [false, true]) {
+      const root = tempProject('openspec-project');
+      const { config, adapter, dir } = deliverable(root, keep ? 'keep' : 'drop');
+      config.archive.runs = keep;
+      const rel = path.relative(root, dir);
+      write(root, `${rel}/runs/r1/result.md`, 'ответ');
+      write(root, `${rel}/runs/r1/receipt.json`, '{"id":"r1"}');
+      const result = await archiveChange(root, config, adapter, dir, loadChange(dir), { date: '2026-09-18' });
+      expect(fs.existsSync(path.join(result.archivedTo, 'runs'))).toBe(keep);
+      expect(fs.existsSync(path.join(result.archivedTo, 'change.yaml'))).toBe(true);
+    }
+  });
+
   it('непустой каталог архива останавливает доставку до применения дельт: истина не тронута', async () => {
     const root = tempProject('openspec-project');
     const { config, adapter, dir } = deliverable(root);

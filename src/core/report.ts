@@ -79,7 +79,8 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
     runner: input.receipt?.runner ?? null,
     model: input.receipt?.model ?? null,
     session: input.receipt?.session ?? null,
-    started: input.receipt?.started ?? null,
+    // В интерактивном режиме старт запуска это момент выдачи пакета: packet.json не архивируется и не коммитится, поэтому время фиксируется здесь.
+    started: input.receipt?.started ?? (exists(path.join(rdir, 'packet.json')) ? fs.statSync(path.join(rdir, 'packet.json')).mtime.toISOString() : null),
     finished: new Date().toISOString(),
     exit_code: input.receipt?.exitCode ?? null,
     cost_usd: input.receipt?.costUsd ?? null,
@@ -152,6 +153,9 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
   }
   if (role === 'reviewer' && phase === 'review' && result.dispositions) {
     change.accepted_gaps = result.dispositions.filter((d) => d.disposition === 'manual_gap_accepted').map((d) => ({ item: d.item, ...(d.reason ? { reason: d.reason } : {}) }));
+  }
+  if (role === 'reviewer' && phase === 'review' && result.status === 'готово' && result.delivery_narrative) {
+    change.delivery_narrative = result.delivery_narrative;
   }
 
   let phaseCompleted = false;

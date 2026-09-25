@@ -8,7 +8,7 @@ import { buildPacket } from '../src/core/packet.js';
 import { approveGate, nextStep, rejectGate } from '../src/core/phases.js';
 import { applyReport } from '../src/core/report.js';
 import { createSpecAdapter } from '../src/core/spec-adapter.js';
-import { RESULT, read, tempProject, write } from './helpers.js';
+import { RESEARCH, RESULT, read, tempProject, write } from './helpers.js';
 
 async function report(root: string, dir: string, role: string, phase: string, md: string) {
   const config = loadConfig(root);
@@ -33,7 +33,11 @@ describe('полный цикл изменения (supervised, без аген�
     expect(packet.rules[0]?.id).toBe('ADR-0001');
     write(root, `${rel(dir)}/evidence/research.md`, '# Evidence\nфакты');
     let out = await report(root, dir, 'researcher', 'research', RESULT('готово'));
+    expect(out.diagnostics.map((d) => d.code)).toContain('REQUEST_MAP_MISSING'); // без «Разбора запроса» отчёт не принят
+    expect(out.phaseCompleted).toBe(false);
+    out = await report(root, dir, 'researcher', 'research', RESEARCH('Добавить поле поиска на главную.'));
     expect(out.phaseCompleted).toBe(true);
+    expect(out.summary).toMatch(/^researcher r2: готово, фаза завершена/);
     expect(loadChange(dir).phase).toBe('propose');
 
     // propose → гейт proposal

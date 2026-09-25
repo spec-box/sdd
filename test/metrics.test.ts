@@ -7,7 +7,7 @@ import { loadConfig } from '../src/core/config.js';
 import { changeMetrics } from '../src/core/metrics.js';
 import { applyReport } from '../src/core/report.js';
 import { createSpecAdapter } from '../src/core/spec-adapter.js';
-import { RESULT, tempProject, write } from './helpers.js';
+import { RESEARCH, RESULT, tempProject, write } from './helpers.js';
 
 describe('метрики без папки runs', () => {
   it('запуски, время и стоимость берутся из change.yaml, когда runs/ удалён архивацией', () => {
@@ -38,7 +38,7 @@ describe('метрики без папки runs', () => {
     const rel = path.relative(root, dir);
     write(root, `${rel}/runs/r1/packet.json`, '{}');
     write(root, `${rel}/evidence/research.md`, '# Evidence\n');
-    await applyReport({ root, config, dir, change: loadChange(dir), role: 'researcher', phase: 'research', markdown: RESULT('готово'), adapter });
+    await applyReport({ root, config, dir, change: loadChange(dir), role: 'researcher', phase: 'research', markdown: RESEARCH('r'), adapter });
     const run = loadChange(dir).runs[0];
     expect(run?.started).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(run?.finished).toMatch(/^\d{4}-\d{2}-\d{2}T/);

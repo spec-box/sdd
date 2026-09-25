@@ -38,3 +38,6 @@ export function read(root: string, rel: string): string {
 export const RESULT = (status: string, extra = ''): string => `Готово.\n\n\`\`\`yaml\n# sbox-result\nstatus: ${status}\nblocker: { category: нет }\n${extra}\`\`\`\n`;
 
 export const BLOCKED = (category: string, message: string): string => `Стоп.\n\n\`\`\`yaml\n# sbox-result\nstatus: заблокировано\nblocker: { category: ${category}, message: "${message}" }\n\`\`\`\n`;
+
+/** Ответ исследователя с «Разбором запроса»: одна дословная цитата со статусом «подтверждено». */
+export const RESEARCH = (quote: string, extra = ''): string => RESULT('готово', `request:\n  - { quote: "${quote}", status: подтверждено, evidence: "src/index.ts" }\n${extra}`);

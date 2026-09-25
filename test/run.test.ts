@@ -7,7 +7,7 @@ import { loadConfig } from '../src/core/config.js';
 import { requestStop, runChange } from '../src/core/run.js';
 import { createSpecAdapter } from '../src/core/spec-adapter.js';
 import type { AgentRunner, RunRequest, RunResponse } from '../src/core/runner.js';
-import { RESULT, read, tempProject, write } from './helpers.js';
+import { RESEARCH, RESULT, read, tempProject, write } from './helpers.js';
 
 /** Фейковая среда: отвечает по сценарию, записывая ответ в resultFile. */
 function fakeRunner(script: ((req: RunRequest) => Partial<RunResponse> & { markdown?: string | null })[]): AgentRunner & { calls: RunRequest[] } {
@@ -41,7 +41,7 @@ describe('headless-цикл', () => {
         write(root, `${rel}/evidence/research.md`, '# Evidence');
         expect(req.role).toBe('researcher');
         expect(req.readOnly).toBe(true);
-        return { markdown: RESULT('готово') };
+        return { markdown: RESEARCH('поиск') };
       },
       () => {
         write(root, `${rel}/proposal.md`, '## Зачем\nпоиск');
@@ -84,7 +84,7 @@ describe('headless-цикл', () => {
     const runner = fakeRunner([() => ({ markdown: RESULT('готово') })]); // researcher без evidence/research.md? файл создаёт CLI, значит отчёт примется
     // Сделаем planner без proposal.md: отчёт отклоняется ARTIFACT_MISSING
     write(root, `${path.relative(root, dir)}/evidence/research.md`, 'x');
-    const r2 = fakeRunner([() => ({ markdown: RESULT('готово') }), () => ({ markdown: RESULT('утверждение') }), () => ({ markdown: RESULT('утверждение') }), () => ({ markdown: RESULT('утверждение') })]);
+    const r2 = fakeRunner([() => ({ markdown: RESEARCH('r') }), () => ({ markdown: RESULT('утверждение') }), () => ({ markdown: RESULT('утверждение') }), () => ({ markdown: RESULT('утверждение') })]);
     const summary = await runChange({ root, config, dir, adapter, runner: r2, maxRuns: 10 });
     expect(summary.reason).toBe('wait');
     expect(loadChange(dir).status).toBe('parked');

@@ -74,6 +74,19 @@ const runSchema = z.object({
 const checkSchema = z.object({ id: z.string(), purpose: z.string().optional(), result: z.enum(['PASS', 'FAIL', 'PARTIAL', 'NOT_RUN']), evidence: z.string().optional() });
 const gapSchema = z.object({ id: z.string(), environment: z.string().optional(), oracle: z.string().optional(), risk: z.string().optional() });
 
+/** Расхождение между запросом, evidence и proposal: противоречие из «Разбора запроса» исследователя или отступление планировщика (docs/design.md, раздел 5). */
+const conflictSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['противоречие', 'отступление']),
+  subject: z.enum(['запрос', 'evidence']),
+  role: z.string(),
+  run: z.string(),
+  text: z.string(),
+  evidence: z.string().optional(),
+  decision: z.string().optional(),
+  reason: z.string().optional(),
+});
+
 export const changeSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -145,12 +158,15 @@ export const changeSchema = z.object({
   coordination: z.unknown().nullable().default(null),
   branch: z.string().optional(),
   pr: z.object({ number: z.number().optional(), url: z.string().optional(), draft: z.boolean().optional() }).optional(),
+  /** Расхождения, показываемые человеку на гейте proposal; идентификаторы C1, C2… перенумеровываются при каждом отчёте. */
+  conflicts: z.array(conflictSchema).default([]),
   runs: z.array(runSchema).default([]),
 });
 
 export type Change = z.infer<typeof changeSchema>;
 export type GateState = z.infer<typeof gateStateSchema>;
 export type Run = z.infer<typeof runSchema>;
+export type Conflict = z.infer<typeof conflictSchema>;
 export type VerificationCheck = z.infer<typeof checkSchema>;
 export type VerificationGap = z.infer<typeof gapSchema>;
 

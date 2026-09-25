@@ -55,7 +55,7 @@ const RESULT_FORMAT = `Ответ заканчивается блоком:
 status: готово | утверждение | заблокировано
 blocker: { category: артефакт | тесты | реализация | внешний | пользователь | нет, artifact: <id>, message: <текст> }
 \`\`\`
-Дополнительные поля по роли: complexity и size (planner на propose), questions (planner на plan), findings (reviewer), checks и gaps (verifier), dispositions и delivery_narrative (reviewer в фазе review), protected (tester), verified (implementer, verifier).`;
+Дополнительные поля по роли: request (researcher: разбор запроса дословными цитатами со статусом подтверждено | противоречит | не проверено), complexity, size и deviations (planner на propose: отступления proposal от запроса или evidence с решением и причиной), questions (planner на plan), findings (reviewer), checks и gaps (verifier), dispositions и delivery_narrative (reviewer в фазе review), protected (tester), verified (implementer, verifier).`;
 
 const OBJECTIVES: Partial<Record<`${Role}:${Phase}`, string>> = {
   'researcher:research': 'Собрать Evidence Pack по запросу: текущее поведение, затронутые capability и код, границы, доказательства, пробелы. Записать в evidence/research.md.',
@@ -168,6 +168,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     verificationReport: role === 'reviewer' && phase === 'review' ? change.verification : null,
     wiring,
     context: config.context ?? null,
+    // Команды отчёта здесь нет: report сдаёт оркестратор или раннер, роль только пишет resultFile (docs/design.md, раздел 12).
     commands: {
       status: `sbox status --change ${change.id} --json`,
       instructions: `sbox instructions <artifact> --change ${change.id} --json`,
@@ -175,7 +176,6 @@ export function buildPacket(ctx: PacketContext): RolePacket {
       specList: 'sbox spec list --json',
       specShow: 'sbox spec show <capability-id> --json',
       changeset: `sbox changeset show --change ${change.id} --json`,
-      report: `sbox report --change ${change.id} --role ${role} --file ${rel(path.join(dir, 'runs', runId, 'result.md'))}`,
       browser: 'sbox-browser goto <url> | snapshot | click <eN|селектор> | fill <eN> <текст> | text | console --errors | requests | screenshot (вход человека: sbox-browser login <url> --profile <имя>; справка: sbox-browser --help)',
     },
     rolePrompt: loadRoleText(root, role),

@@ -6,6 +6,10 @@ import { SboxError } from './errors.js';
 export const ROLE_STATUSES = ['готово', 'утверждение', 'заблокировано'] as const;
 export const BLOCKER_CATEGORIES = ['артефакт', 'тесты', 'реализация', 'внешний', 'пользователь', 'нет'] as const;
 export const DISPOSITIONS = ['satisfied', 'manual_gap_accepted', 'change_required', 'blocked'] as const;
+/** Статус утверждения запроса в «Разборе запроса» исследователя. */
+export const REQUEST_STATUSES = ['подтверждено', 'противоречит', 'не проверено'] as const;
+/** Источник, от которого отступает proposal планировщика. */
+export const DEVIATION_SUBJECTS = ['запрос', 'evidence'] as const;
 
 export const roleResultSchema = z.object({
   status: z.enum(ROLE_STATUSES),
@@ -44,6 +48,10 @@ export const roleResultSchema = z.object({
     .optional(),
   protected: z.array(z.string()).optional(),
   verified: z.array(z.string()).optional(),
+  /** researcher: явные утверждения запроса дословными цитатами со статусом; CLI сверяет цитаты с текстом запроса. */
+  request: z.array(z.object({ quote: z.string().min(1), status: z.enum(REQUEST_STATUSES), evidence: z.string().optional() })).optional(),
+  /** planner на фазе propose: отступления proposal от запроса или evidence с решением и причиной. */
+  deviations: z.array(z.object({ subject: z.enum(DEVIATION_SUBJECTS), text: z.string().min(1), decision: z.string().min(1), reason: z.string().optional() })).optional(),
 });
 
 export type RoleResult = z.infer<typeof roleResultSchema>;

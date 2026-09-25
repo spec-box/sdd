@@ -35,7 +35,9 @@
         "dispositions": { "type": "array", "items": { "type": "object", "properties": { "item": { "type": "string" }, "disposition": { "type": "string", "enum": ["satisfied", "manual_gap_accepted", "change_required", "blocked"] }, "reason": { "type": "string" } } } },
         "delivery_narrative": { "type": "object", "properties": { "title": { "type": "string" }, "delta": { "type": "string" }, "why": { "type": "string" }, "preserved": { "type": "string" }, "rollout": { "type": "string" }, "rollback": { "type": "string" } } },
         "protected": { "type": "array", "items": { "type": "string" } },
-        "verified": { "type": "array", "items": { "type": "string" } }
+        "verified": { "type": "array", "items": { "type": "string" } },
+        "request": { "type": "array", "items": { "type": "object", "required": ["quote", "status"], "properties": { "quote": { "type": "string" }, "status": { "type": "string", "enum": ["подтверждено", "противоречит", "не проверено"] }, "evidence": { "type": "string" } } } },
+        "deviations": { "type": "array", "items": { "type": "object", "required": ["subject", "text", "decision"], "properties": { "subject": { "type": "string", "enum": ["запрос", "evidence"] }, "text": { "type": "string" }, "decision": { "type": "string" }, "reason": { "type": "string" } } } }
       }
     }
   }

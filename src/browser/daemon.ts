@@ -6,7 +6,8 @@ import { SboxError } from '../core/errors.js';
 import { handlers, pushLimited, type DaemonContext, type PageState } from './commands.js';
 import { browserDirs, ensureDir, expandHome, profileDir } from './paths.js';
 import { createLineParser, encodeMessage, type ErrorPayload, type Request, type Response } from './protocol.js';
-import { removeSession, socketPath, writeSession, type SessionInfo } from './session.js';
+import { sendTo } from './client.js';
+import { readSession, removeSession, socketPath, writeSession, type SessionInfo } from './session.js';
 
 export interface DaemonOptions {
   session: string;
@@ -52,6 +53,17 @@ function toError(e: unknown): ErrorPayload {
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const env = opts.env ?? process.env;
   const log = opts.log ?? ((line: string) => process.stderr.write(`${new Date().toISOString()} ${line}\n`));
+  const existing = readSession(opts.session, env);
+  if (existing) {
+    let alive = false;
+    try {
+      await sendTo(existing, 'ping', {}, 3_000, env);
+      alive = true;
+    } catch {
+      alive = false;
+    }
+    if (alive) throw new SboxError('BROWSER_SESSION_EXISTS', `Сессия ${opts.session} уже работает (pid ${existing.pid}).`, 'Используйте её или остановите: \`sbox-browser stop\`.');
+  }
   const userDataDir = resolveProfileDir(opts.profile, env);
   if (userDataDir) ensureDir(userDataDir);
   const args = ['--no-first-run', '--no-default-browser-check', '--disable-session-crashed-bubble', '--hide-crash-restore-bubble', `--window-size=${opts.viewport.width},${opts.viewport.height + 88}`, ...(opts.extraArgs ?? [])];
@@ -87,7 +99,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     dialogPolicy: { action: 'dismiss' },
     startedAt: Date.now(),
     requestStop() {
-      void stop('команда stop');
+      setTimeout(() => void stop('команда stop'), 100);
     },
   };
 
@@ -112,9 +124,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       if (r.status() >= 400) pushLimited(state.network, { ts: new Date().toISOString(), method: r.request().method(), url: r.url(), resourceType: r.request().resourceType(), status: r.status() });
     });
     page.on('close', () => {
+      const current = context.pages[context.currentIndex];
       const i = context.pages.indexOf(state);
       if (i >= 0) context.pages.splice(i, 1);
-      if (context.currentIndex >= context.pages.length) context.currentIndex = Math.max(0, context.pages.length - 1);
+      const kept = current && current !== state ? context.pages.indexOf(current) : -1;
+      context.currentIndex = kept >= 0 ? kept : Math.max(0, context.pages.length - 1);
     });
     context.pages.push(state);
     return state;
@@ -148,7 +162,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (opts.idleMinutes > 0) idleTimer = setTimeout(() => void stop(`простой ${opts.idleMinutes} мин`), opts.idleMinutes * 60_000);
   };
 
+  const sockets = new Set<net.Socket>();
   const server = net.createServer((conn) => {
+    sockets.add(conn);
+    conn.on('close', () => sockets.delete(conn));
     const parse = createLineParser<Request>(
       (req) => {
         touch();
@@ -179,6 +196,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     server.once('error', reject);
     server.listen(sock, () => {
       server.off('error', reject);
+      if (!sock.startsWith('\\\\.\\pipe\\')) {
+        try {
+          fs.chmodSync(sock, 0o600);
+        } catch {
+          /* файловая система без прав */
+        }
+      }
       resolve();
     });
   });
@@ -205,7 +229,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     stopping = (async () => {
       if (idleTimer) clearTimeout(idleTimer);
       log(`■ остановка: ${reason}`);
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+      for (const s of sockets) s.destroy();
+      await Promise.race([closed, new Promise<void>((resolve) => setTimeout(resolve, 2_000))]);
       try {
         if (browser.connected) await browser.close();
       } catch {

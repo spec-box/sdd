@@ -153,7 +153,7 @@ sbox run --change add-search
 1. `sbox-browser doctor` покажет, какой браузер будет использован: системный Chrome подходит; если браузера нет, `sbox-browser install` скачает Chrome for Testing в `~/.sbox/browser/cache`. Существующий браузер задаётся через `browser.executable` в `.sbox/config.yaml` или `SBOX_BROWSER_EXECUTABLE`.
 2. В `.sbox/config.yaml` укажите `browser.baseUrl` локального запуска и, если нужен вход, `browser.profile`; в `testing.md` заполните раздел «Проверка интерфейса в браузере»: базовый URL, профиль, дымовые маршруты.
 3. Вход выполняет человек один раз: `sbox-browser login https://app.local --profile app`. Откроется окно браузера, войдите и нажмите Enter в терминале (или добавьте `--until-url '*/dashboard*'`, чтобы вход завершился сам). Куки остаются в профиле `app`; остановите сессию командой `sbox-browser stop`, дальше роли работают headless под этим профилем.
-4. Проверьте сами: `sbox-browser goto /orders`, `sbox-browser snapshot`, `sbox-browser console --errors`. Так же работает и верификатор: снимок, действия по ссылкам `[eN]`, текст, консоль, сетевые ошибки, скриншот как доказательство.
+4. Проверьте сами: `sbox-browser goto /orders`, `sbox-browser snapshot`, `sbox-browser console --errors`, или попросите Claude Code через скилл `/sbox-browser` («проверь страницу заказов»). Так же работает и верификатор: снимок, действия по ссылкам `[eN]`, текст, консоль, сетевые ошибки, скриншот как доказательство.
 5. Для headless-запусков в CI перенесите вход файлом: `sbox-browser state save auth.json` на своей машине, в CI `sbox-browser state load auth.json` из секрета. Файл содержит куки входа: не коммитьте его.
 
 ## Метрики

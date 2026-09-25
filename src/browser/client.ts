@@ -43,7 +43,8 @@ export function sendTo<T = unknown>(info: SessionInfo, cmd: string, args: Record
     }));
     conn.on('error', (e: NodeJS.ErrnoException) => {
       if (e.code === 'ECONNREFUSED' || e.code === 'ENOENT') {
-        if (!isPidAlive(info.pid)) removeSession(info.name, env);
+        // Сокет мёртв независимо от pid (после перезагрузки pid может принадлежать чужому процессу): след снимается, следующая команда поднимет сессию заново.
+        removeSession(info.name, env);
         finish(() => reject(new SboxError('BROWSER_SESSION_NOT_RUNNING', `Сокет сессии ${info.name} не отвечает (${e.code}).`, 'Повторите команду: сессия будет поднята заново.')));
       } else {
         finish(() => reject(new SboxError('BROWSER_CLIENT_ERROR', `Ошибка связи с демоном ${info.name}: ${e.message}`)));
@@ -77,7 +78,7 @@ export function daemonEntry(): string {
 export async function spawnDaemon(session: string, spec: LaunchSpec, opts: { env?: NodeJS.ProcessEnv; startTimeoutMs?: number; log?: (s: string) => void } = {}): Promise<SessionInfo> {
   const env = opts.env ?? process.env;
   const logFile = path.join(ensureDir(browserDirs.logs(env)), `${session}.log`);
-  const out = fs.openSync(logFile, 'a');
+  const out = fs.openSync(logFile, 'a', 0o600);
   const args = [
     daemonEntry(),
     'serve',
@@ -102,6 +103,16 @@ export async function spawnDaemon(session: string, spec: LaunchSpec, opts: { env
   const deadline = Date.now() + (opts.startTimeoutMs ?? 60_000);
   while (Date.now() < deadline) {
     if (exited) {
+      // Гонка двух автозапусков: проигравший демон завершился, потому что сессию уже поднял другой процесс.
+      const winner = readSession(session, env);
+      if (winner && winner.pid !== child.pid) {
+        try {
+          await sendTo(winner, 'ping', {}, 5_000, env);
+          return winner;
+        } catch {
+          /* и он мёртв: сообщаем об ошибке запуска */
+        }
+      }
       const tail = tailOf(logFile);
       throw new SboxError('BROWSER_START_FAILED', `Демон сессии ${session} завершился с кодом ${(exited as { code: number | null }).code} до готовности.${tail ? `\n${tail}` : ''}`, `Полный журнал: ${logFile}`);
     }

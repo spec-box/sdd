@@ -37,13 +37,14 @@ src/core/        доменная модель, конфиг, состояние
                  пакет для роли, приём отчёта, change-set, headless-цикл run, доставка и текст PR, гейты через PR,
                  отчёты тестов и покрытие, категории документации и doctor, архивация
 src/adapters/    spec/spec-box, spec/openspec — истина и дельты в двух форматах; runner/claude, runner/codex — среды агентов;
-                 repo/github, repo/local — хостинг репозитория; host/claude — материалы для Claude Code
+                 repo/github, repo/local — хостинг репозитория; host/skills — раскладки скиллов по хостам, host/claude — агенты Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
                  status, instructions, validate, spec, archive
 src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,
                  снимок дерева доступности со ссылками, поиск и установка браузера, вход человеком, перенос состояния
 assets/roles/    определения ролей (Markdown): researcher, planner, tester, implementer, reviewer, verifier…
 assets/schema/   граф артефактов по умолчанию и инструкции к ним
+assets/skills/   скиллы хостов (единый источник): sbox-run, sbox-approve, sbox-browser; копируются в папку хоста при init и host install
 assets/templates/ шаблоны артефактов изменения
 assets/project/  шаблоны категорий проектной документации
 assets/ci/       шаблоны GitHub Actions и Dockerfile
@@ -92,7 +93,7 @@ sbox-browser state save auth.json                     # перенести вх�
 sbox-browser stop
 ```
 
-Существующий браузер вместо установки: флаг `--executable`, переменная `SBOX_BROWSER_EXECUTABLE` или `browser.executable` в `.sbox/config.yaml`; без них по порядку проверяются кэш инструмента, кэш puppeteer, системный Chrome, Chromium, Edge и Brave. Сессия это фоновый процесс с браузером: команды идут к нему через локальный сокет, поэтому страница, куки, консоль и сетевые ошибки сохраняются между вызовами; `--session <имя>` даёт несколько независимых браузеров, простой 30 минут завершает сессию. Настройки в секции `browser` конфига: `executable`, `headless`, `profile`, `baseUrl`, `viewport`, `timeoutMs`, `idleMinutes`. Все команды поддерживают `--json`. Профили и файлы состояния содержат секреты входа и живут в `~/.sbox/browser`, вне репозитория.
+Существующий браузер вместо установки: флаг `--executable`, переменная `SBOX_BROWSER_EXECUTABLE` или `browser.executable` в `.sbox/config.yaml`; без них по порядку проверяются кэш инструмента, кэш puppeteer, системный Chrome, Chromium, Edge и Brave. Сессия это фоновый процесс с браузером: команды идут к нему через локальный сокет, поэтому страница, куки, консоль и сетевые ошибки сохраняются между вызовами; `--session <имя>` даёт несколько независимых браузеров, простой 30 минут завершает сессию. Настройки в секции `browser` конфига: `executable`, `headless`, `profile`, `baseUrl`, `viewport`, `timeoutMs`, `idleMinutes`. Все команды поддерживают `--json`. Профили и файлы состояния содержат секреты входа и живут в `~/.sbox/browser`, вне репозитория. Скилл `sbox-browser` лежит в `assets/skills` и копируется в папку хоста командой `sbox host install --target claude | codex`; агентам researcher, tester и verifier он подключается по `metadata.roles` (в Claude Code полем `skills`).
 
 ## Состояние
 

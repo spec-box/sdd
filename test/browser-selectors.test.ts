@@ -25,3 +25,28 @@ describe('browser: цели команд', () => {
     expect(urlMatches('https://app.example.com/orders/12', 'https://app.example.com/login*')).toBe(false);
   });
 });
+
+describe('browser: адрес для goto', () => {
+  it('полный URL и служебные схемы проходят как есть', async () => {
+    const { normalizeUrl } = await import('../src/browser/selectors.js');
+    expect(normalizeUrl('https://app.local/x?y=1', null)).toBe('https://app.local/x?y=1');
+    expect(normalizeUrl('about:blank', 'http://base')).toBe('about:blank');
+    expect(normalizeUrl('file:///tmp/a.html', null)).toBe('file:///tmp/a.html');
+  });
+
+  it('хост с портом и доменные имена получают http://', async () => {
+    const { normalizeUrl } = await import('../src/browser/selectors.js');
+    expect(normalizeUrl('localhost:3000', null)).toBe('http://localhost:3000');
+    expect(normalizeUrl('localhost:3000/orders?x=1', null)).toBe('http://localhost:3000/orders?x=1');
+    expect(normalizeUrl('127.0.0.1:8080/x', null)).toBe('http://127.0.0.1:8080/x');
+    expect(normalizeUrl('example.com/path', null)).toBe('http://example.com/path');
+  });
+
+  it('относительный путь считается от базового URL, без него даёт null', async () => {
+    const { normalizeUrl } = await import('../src/browser/selectors.js');
+    expect(normalizeUrl('/orders', 'http://localhost:3000')).toBe('http://localhost:3000/orders');
+    expect(normalizeUrl('orders/list', 'http://localhost:3000/app')).toBe('http://localhost:3000/app/orders/list');
+    expect(normalizeUrl('/orders', null)).toBeNull();
+    expect(normalizeUrl('orders', null)).toBeNull();
+  });
+});

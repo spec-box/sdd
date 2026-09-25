@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Command } from 'commander';
-import { installClaudeMaterials } from '../../adapters/host/claude/index.js';
+import { installHostMaterials } from '../../adapters/host/index.js';
 import { defaultConfig, loadConfig, saveConfig } from '../../core/config.js';
 import { SboxError } from '../../core/errors.js';
 import { assetsDir, sboxDir, exists, readText, today, writeText } from '../../core/paths.js';
@@ -16,7 +16,7 @@ export function registerInit(program: Command): void {
     .command('init')
     .description('Создать .sbox/: конфиг, шаблоны проектной документации, каталог изменений; при --host сразу материалы для хоста')
     .option('--adapter <name>', 'адаптер спецификаций: spec-box | openspec; при существующем конфиге меняет только его')
-    .option('--host <name>', 'сразу установить материалы хоста: claude')
+    .option('--host <name>', 'сразу установить материалы хоста: claude | codex')
     .option('--force', 'перезаписать конфиг целиком (документация не трогается)')
     .option('--reset-docs', 'перезаписать заполненную документацию шаблонами')
     .action((opts: { adapter?: string; host?: string; force?: boolean; resetDocs?: boolean }, cmd: Command) => {
@@ -126,8 +126,9 @@ export function registerInit(program: Command): void {
 
         let hostFiles: string[] = [];
         if (opts.host) {
-          if (opts.host !== 'claude') throw new SboxError('HOST_NOT_READY', `Хост ${opts.host} ещё не поддержан; доступен claude.`);
-          hostFiles = installClaudeMaterials(root, exists(configFile) ? loadConfig(root) : undefined).map((f) => path.relative(root, f));
+          const result = installHostMaterials(root, opts.host, exists(configFile) ? loadConfig(root) : undefined);
+          hostFiles = result.files.map((f) => path.relative(root, f));
+          notes.push(...result.notes);
         }
 
         emit(g, { root, adapter, created: created.map((f) => path.relative(root, f)), host: hostFiles, notes }, (d) =>

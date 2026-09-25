@@ -185,6 +185,20 @@ describe.skipIf(!exe)('browser: сквозной прогон на локаль�
     await send('page.close');
     expect((await send<{ pages: unknown[] }>('pages')).pages).toHaveLength(1);
   });
+
+  it('закрытие не текущей вкладки не сдвигает текущую; второй демон той же сессии отклоняется', async () => {
+    await send('goto', { url: '/' });
+    await send('page.new', { url: '/login' });
+    await send('page.new', { url: '/dialog' });
+    expect((await send<{ pages: { index: number; current: boolean; url: string }[] }>('pages')).pages.find((p) => p.current)?.url).toContain('/dialog');
+    await send('page.close', { index: 0 });
+    const pages = (await send<{ pages: { index: number; current: boolean; url: string }[] }>('pages')).pages;
+    expect(pages).toHaveLength(2);
+    expect(pages.find((p) => p.current)?.url).toContain('/dialog');
+    await send('page.close', { index: 0 });
+    await expect(startDaemon({ session, executable: exe!.path, headless: true, profile: null, viewport: { width: 800, height: 600 }, idleMinutes: 0, baseUrl: null, timeoutMs: 5000, cwd: process.cwd(), env, log: () => {} })).rejects.toMatchObject({ code: 'BROWSER_SESSION_EXISTS' });
+    expect((await send<{ result: unknown }>('eval', { code: 'document.title' })).result).toBe('Диалог');
+  });
 });
 
 describe.skipIf(!exe || !fs.existsSync(distCli))('browser: демон в фоне через собранный CLI', () => {

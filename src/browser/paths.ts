@@ -25,8 +25,9 @@ export function puppeteerDefaultCache(env: NodeJS.ProcessEnv = process.env): str
   return env.PUPPETEER_CACHE_DIR ? expandHome(env.PUPPETEER_CACHE_DIR) : path.join(os.homedir(), '.cache', 'puppeteer');
 }
 
+/** Каталоги инструмента содержат профили входа и сокеты: создаются доступными только владельцу. */
 export function ensureDir(dir: string): string {
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }
 

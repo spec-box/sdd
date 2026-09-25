@@ -48,7 +48,7 @@ export function writeSession(info: SessionInfo, env?: NodeJS.ProcessEnv): string
   const file = sessionFile(info.name, env);
   ensureDir(path.dirname(file));
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(info, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(tmp, `${JSON.stringify(info, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   fs.renameSync(tmp, file);
   return file;
 }

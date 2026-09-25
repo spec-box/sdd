@@ -5,7 +5,8 @@ import { z } from 'zod';
 import type { Browser, CookieData, ElementHandle, Page, PuppeteerLifeCycleEvent, SerializedAXNode } from 'puppeteer-core';
 import { SboxError } from '../core/errors.js';
 import { browserDirs, ensureDir, timestampSlug } from './paths.js';
-import { parseTarget, urlMatches } from './selectors.js';
+import { parseKeyCombo } from './keys.js';
+import { normalizeUrl, parseTarget, urlMatches } from './selectors.js';
 import { renderSnapshot } from './snapshot.js';
 
 /** Состояние одной вкладки: буферы консоли и сети, последний снимок со ссылками. */
@@ -69,9 +70,9 @@ function err(code: string, message: string, fix?: string): SboxError {
 }
 
 function resolveUrl(ctx: DaemonContext, url: string): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url;
-  if (!ctx.settings.baseUrl) throw err('BROWSER_RELATIVE_URL', `Относительный адрес «${url}» требует базового URL.`, 'Укажите browser.baseUrl в .sbox/config.yaml, --base-url при старте или полный адрес.');
-  return new URL(url, ctx.settings.baseUrl.endsWith('/') ? ctx.settings.baseUrl : `${ctx.settings.baseUrl}/`).toString();
+  const resolved = normalizeUrl(url, ctx.settings.baseUrl);
+  if (!resolved) throw err('BROWSER_RELATIVE_URL', `Относительный адрес «${url}» требует базового URL.`, 'Укажите browser.baseUrl в .sbox/config.yaml, --base-url при старте или полный адрес.');
+  return resolved;
 }
 
 async function resolveHandle(ctx: DaemonContext, raw: string, opts: { timeout?: number; visible?: boolean } = {}): Promise<ElementHandle<Element>> {
@@ -81,8 +82,13 @@ async function resolveHandle(ctx: DaemonContext, raw: string, opts: { timeout?: 
     if (!state.snapshot) throw err('BROWSER_NO_SNAPSHOT', 'Ссылки [eN] появляются после `sbox-browser snapshot`.', 'Сделайте snapshot и возьмите ссылку из него.');
     const node = state.snapshot.refs.get(t.ref);
     if (!node) throw err('BROWSER_REF_UNKNOWN', `В последнем снимке нет ссылки ${t.ref}.`, 'Сделайте snapshot заново: ссылки нумеруются при каждом снимке.');
-    const handle = await node.elementHandle();
-    if (!handle) throw err('BROWSER_REF_STALE', `Элемент ${t.ref} исчез со страницы.`, 'Сделайте snapshot заново после изменения страницы.');
+    let handle: ElementHandle | null = null;
+    try {
+      handle = await node.elementHandle();
+    } catch {
+      handle = null;
+    }
+    if (!handle) throw err('BROWSER_REF_STALE', `Элемент ${t.ref} исчез со страницы (снимок от ${state.snapshot.at}, ${state.snapshot.url}).`, 'Сделайте snapshot заново после изменения страницы.');
     return handle as ElementHandle<Element>;
   }
   const timeout = opts.timeout ?? ctx.settings.timeoutMs;
@@ -245,14 +251,16 @@ export const handlers: Record<string, Handler> = {
     const a = z.object({ key: z.string().min(1), target: z.string().optional(), timeout: timeoutField }).parse(raw);
     const page = ctx.current().page;
     if (a.target) await (await resolveHandle(ctx, a.target, { timeout: a.timeout })).focus();
-    const parts = a.key.split('+');
-    const key = parts.pop()!;
+    const { modifiers, key } = parseKeyCombo(a.key);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of parts) await page.keyboard.down(m as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await page.keyboard.press(key as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of parts.reverse()) await page.keyboard.up(m as any);
+    for (const m of modifiers) await page.keyboard.down(m as any);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await page.keyboard.press(key as any);
+    } finally {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const m of [...modifiers].reverse()) await page.keyboard.up(m as any);
+    }
     await sleep(50);
     return { pressed: a.key, url: page.url() };
   },

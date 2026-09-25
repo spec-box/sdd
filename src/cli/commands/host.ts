@@ -1,7 +1,6 @@
 import path from 'node:path';
 import type { Command } from 'commander';
-import { installClaudeMaterials } from '../../adapters/host/claude/index.js';
-import { SboxError } from '../../core/errors.js';
+import { installHostMaterials } from '../../adapters/host/index.js';
 import { projectContext } from '../context.js';
 import { emit, emitError } from '../output.js';
 
@@ -19,9 +18,9 @@ export function registerHost(program: Command): void {
       const g = cmd.optsWithGlobals() as { json: boolean; cwd?: string };
       try {
         const ctx = projectContext(g.cwd);
-        if (opts.target !== 'claude') throw new SboxError('HOST_NOT_READY', `Хост ${opts.target} ещё не поддержан; доступен claude.`);
-        const files = installClaudeMaterials(ctx.root, ctx.config).map((f) => path.relative(ctx.root, f));
-        emit(g, { target: opts.target, files, claudeMdSnippet: CLAUDE_MD_SNIPPET }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), '', 'Откройте Claude Code в корне проекта и вызовите /sbox-run.', 'Рекомендуемая строка для CLAUDE.md или AGENTS.md проекта:', '', d.claudeMdSnippet].join('\n'));
+        const result = installHostMaterials(ctx.root, opts.target, ctx.config);
+        const files = result.files.map((f) => path.relative(ctx.root, f));
+        emit(g, { target: result.target, files, notes: result.notes, claudeMdSnippet: CLAUDE_MD_SNIPPET }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), ...d.notes.map((n) => `  ! ${n}`), '', d.target === 'claude' ? 'Откройте Claude Code в корне проекта и вызовите /sbox-run.' : 'Откройте Codex в корне проекта: скиллы доступны из .agents/skills.', 'Рекомендуемая строка для CLAUDE.md или AGENTS.md проекта:', '', d.claudeMdSnippet].join('\n'));
       } catch (e) {
         emitError(g, e);
         process.exitCode = 1;

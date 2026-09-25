@@ -34,3 +34,15 @@ export function urlMatches(url: string, pattern: string): boolean {
   const re = new RegExp(`^${pattern.split('*').map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
   return re.test(url);
 }
+
+/**
+ * Адрес для goto: полный URL как есть; `localhost:3000`, `example.com/path`, IP с портом получают http://;
+ * относительный путь разрешается от базового URL; без базового URL относительный путь даёт null.
+ */
+export function normalizeUrl(input: string, baseUrl: string | null): string | null {
+  const url = input.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || /^(about|data|blob|file|javascript|mailto):/i.test(url)) return url;
+  if (/^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?(\/|\?|#|$)/i.test(url)) return `http://${url}`;
+  if (!baseUrl) return null;
+  return new URL(url, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
+}

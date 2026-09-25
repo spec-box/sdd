@@ -281,7 +281,10 @@ export function buildBrowserProgram(): Command {
         timeoutMs: g.timeout ?? 15_000,
         cwd: g.cwd ?? process.cwd(),
       });
-      const shutdown = (): void => void handle.stop();
+      const shutdown = (): void => {
+        void handle.stop();
+        setTimeout(() => process.exit(1), 10_000).unref();
+      };
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
       await handle.done;

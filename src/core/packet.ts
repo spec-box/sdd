@@ -176,6 +176,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
       specShow: 'sbox spec show <capability-id> --json',
       changeset: `sbox changeset show --change ${change.id} --json`,
       report: `sbox report --change ${change.id} --role ${role} --file ${rel(path.join(dir, 'runs', runId, 'result.md'))}`,
+      browser: 'sbox-browser goto <url> | snapshot | click <eN|селектор> | fill <eN> <текст> | text | console --errors | requests | screenshot (вход человека: sbox-browser login <url> --profile <имя>; справка: sbox-browser --help)',
     },
     rolePrompt: loadRoleText(root, role),
   };

@@ -9,6 +9,8 @@ import type { Config } from '../../core/config.js';
 import type { Diagnostic } from '../../core/diagnostics.js';
 import { projectContext } from '../context.js';
 import { emit, emitError, formatDiagnostics } from '../output.js';
+import { listCandidates } from '../../browser/executable.js';
+import { loadBrowserSettings } from '../../browser/settings.js';
 
 export function registerDoctor(program: Command): void {
   program
@@ -27,6 +29,7 @@ export function registerDoctor(program: Command): void {
         }
         diagnostics.push(...doctorWiki(ctx.root, ctx.config));
         diagnostics.push(...runnerReadiness(ctx.config));
+        diagnostics.push(await browserReadiness(ctx.root));
         const ok = !hasErrors(diagnostics);
         emit(g, { healthy: ok, diagnostics }, (d) => `${formatDiagnostics(d.diagnostics)}\n\n${d.healthy ? 'Документация пригодна для запуска.' : 'Есть ошибки: исправьте их перед запуском изменений.'}`);
         if (!ok) process.exitCode = 1;
@@ -50,4 +53,16 @@ function runnerReadiness(config: Config): Diagnostic[] {
   const codexOk = codex.includes('/') ? fs.existsSync(codex) : (process.env.PATH ?? '').split(path.delimiter).some((p) => fs.existsSync(path.join(p, codex)));
   out.push({ severity: config.runner.default === 'codex' && !codexOk ? 'error' : 'info', code: 'RUNNER_CODEX', message: codexOk ? `Среда codex: ${codex}` : `Среда codex: исполняемый файл ${codex} не найден`, ...(codexOk ? {} : { fix: 'Укажите runner.codex.executable, например /Applications/ChatGPT.app/Contents/Resources/codex, или установите @openai/codex.' }) });
   return out;
+}
+
+/** Браузер для проверки интерфейса: найден ли исполняемый файл и откуда. Только info или warning. */
+async function browserReadiness(root: string): Promise<Diagnostic> {
+  try {
+    const settings = loadBrowserSettings({ cwd: root });
+    const found = (await listCandidates({ explicit: settings.executable, cacheDir: settings.cacheDir }))[0];
+    if (found) return { severity: 'info', code: 'BROWSER', message: `Браузер для sbox-browser: ${found.path} (${found.source})${settings.profile ? `, профиль ${settings.profile}` : ''}` };
+    return { severity: 'warning', code: 'BROWSER', message: 'Браузер для sbox-browser не найден: верификатор не сможет проверить интерфейс', fix: 'Выполните `sbox-browser install` или укажите browser.executable в .sbox/config.yaml.' };
+  } catch (e) {
+    return { severity: 'warning', code: 'BROWSER', message: (e as Error).message, fix: 'Проверьте browser.executable в .sbox/config.yaml или SBOX_BROWSER_EXECUTABLE.' };
+  }
 }

@@ -40,6 +40,8 @@ src/adapters/    spec/spec-box, spec/openspec — истина и дельты �
                  repo/github, repo/local — хостинг репозитория; host/claude — материалы для Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
                  status, instructions, validate, spec, archive
+src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,
+                 снимок дерева доступности со ссылками, поиск и установка браузера, вход человеком, перенос состояния
 assets/roles/    определения ролей (Markdown): researcher, planner, tester, implementer, reviewer, verifier…
 assets/schema/   граф артефактов по умолчанию и инструкции к ним
 assets/templates/ шаблоны артефактов изменения
@@ -70,6 +72,28 @@ sbox prompt show project-docs                 # промпт для заполн
 
 Модели и усилие по ролям задаются в `runner.models` и `runner.efforts` (по умолчанию opus только для planner и challenger, effort medium); после правки выполните `sbox host install --target claude`. Среды: `claude` через Claude Agent SDK (нужен `ANTHROPIC_API_KEY` для CI; локально годится вход Claude Code), `codex` через `codex exec` (в конфиге `runner.codex.executable`, например бинарник из ChatGPT.app). Репозиторий: `repo.adapter: github` с токеном в `GITHUB_TOKEN`; `local` только коммитит.
 
+## Браузер для проверки интерфейса
+
+Отдельный бинарник `sbox-browser` даёт агентам и людям управляемый Chrome: верификатор проверяет затронутую страницу по-настоящему, а не только сборкой, исследователь и тестировщик смотрят текущий интерфейс глазами пользователя. Пакет браузер не скачивает: `puppeteer-core` подключается к тому, что есть, а установка отдельная и необязательная.
+
+```bash
+sbox-browser doctor                                   # какой браузер будет использован и откуда
+sbox-browser install                                  # скачать Chrome for Testing в ~/.sbox/browser/cache (по желанию)
+sbox-browser install --browser chrome-headless-shell  # лёгкий вариант только для headless
+sbox-browser login https://app.local --profile app    # человек входит в окне; вход остаётся в профиле
+sbox-browser goto https://app.local/orders            # первая команда сама поднимает сессию (headless)
+sbox-browser snapshot                                 # дерево элементов со ссылками [eN]
+sbox-browser click e7                                 # действия по ссылкам или селекторам: css, text=, aria=, xpath=
+sbox-browser fill e3 "кофе" && sbox-browser press Enter
+sbox-browser wait --text "Найдено" && sbox-browser text
+sbox-browser console --errors && sbox-browser requests # ошибки консоли, ответы 4xx/5xx и неудачные запросы
+sbox-browser screenshot                               # PNG в ~/.sbox/browser/shots, путь печатается
+sbox-browser state save auth.json                     # перенести вход в CI: там sbox-browser state load auth.json
+sbox-browser stop
+```
+
+Существующий браузер вместо установки: флаг `--executable`, переменная `SBOX_BROWSER_EXECUTABLE` или `browser.executable` в `.sbox/config.yaml`; без них по порядку проверяются кэш инструмента, кэш puppeteer, системный Chrome, Chromium, Edge и Brave. Сессия это фоновый процесс с браузером: команды идут к нему через локальный сокет, поэтому страница, куки, консоль и сетевые ошибки сохраняются между вызовами; `--session <имя>` даёт несколько независимых браузеров, простой 30 минут завершает сессию. Настройки в секции `browser` конфига: `executable`, `headless`, `profile`, `baseUrl`, `viewport`, `timeoutMs`, `idleMinutes`. Все команды поддерживают `--json`. Профили и файлы состояния содержат секреты входа и живут в `~/.sbox/browser`, вне репозитория.
+
 ## Состояние
 
 Готово (этапы 1 и 2): конфиг и раскладка `.sbox/`, жизненный цикл изменения с гейтами, возвратами и бюджетом (`parked`), ревизия и lock `change.yaml`, пакеты и receipt запусков, приём отчётов с проверками (артефакты, дельты, задачи, защищённые тесты, дрейф change-set, disposition и `delivery_narrative` ревьюера), запечатывание change-set после реализации, адаптер spec-box, категории документации и структурный `doctor`, материалы для Claude Code, адаптеры сред Claude и Codex с надзором и одним транспортным повтором, `run`/`stop`/`watch`, адаптер GitHub с идемпотентной доставкой и каналом гейтов через комментарии, отчёты тестов jest/vitest/playwright и покрытие, шаблоны CI и Dockerfile.
@@ -77,5 +101,7 @@ sbox prompt show project-docs                 # промпт для заполн
 Готово также: адаптер OpenSpec (истина в `openspec/specs`, дельты в родном синтаксисе ADDED/MODIFIED/REMOVED/RENAMED, текстовое применение с сохранением остальных разделов, `.openspec.yaml` в папке изменения для совместимости с CLI OpenSpec).
 
 Готово также: wiki проекта в `.sbox/wiki/` (индекс страниц с `read_when` попадает в пакет каждой роли), метрики `sbox metrics` и оценка `sbox change rate`.
+
+Готово также: `sbox-browser` для проверки интерфейса (сессии с Chrome через `puppeteer-core`, необязательная установка браузера, вход человеком с постоянным профилем, снимок дерева доступности для агентов, перенос состояния входа), проверка браузера в `sbox doctor`.
 
 Не готово: дискавери и правила (этап 3), Arcadia и Codex-материалы для хоста (этап 4), межрепозиторный протокол (этап 5), роутер и дистилляция wiki (этап 6), продолжение сессий Codex, семантический `doctor --deep`.

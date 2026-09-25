@@ -108,6 +108,19 @@ export const configSchema = z.object({
       packetFileChars: z.number().int().positive().default(4000),
     })
     .prefault({}),
+  /** Браузер для проверки интерфейса (sbox-browser): исполняемый файл, режим, профиль входа, базовый URL. */
+  browser: z
+    .object({
+      executable: z.string().optional(),
+      headless: z.boolean().default(true),
+      profile: z.string().optional(),
+      baseUrl: z.string().optional(),
+      cacheDir: z.string().optional(),
+      viewport: z.object({ width: z.number().int().positive().default(1280), height: z.number().int().positive().default(800) }).prefault({}),
+      timeoutMs: z.number().int().positive().default(15000),
+      idleMinutes: z.number().int().nonnegative().default(30),
+    })
+    .prefault({}),
   context: z.string().optional(),
   rules: z.record(z.string(), z.array(z.string())).prefault({}),
 });

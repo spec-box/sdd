@@ -25,3 +25,16 @@ describe('browser: кэш установленных браузеров', () => 
     expect(isInstallable('firefox')).toBe(false);
   });
 });
+
+describe('browser: неполная установка', () => {
+  it('папка без бинарника помечается как неполная', async () => {
+    const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbox-cache-'));
+    const platform = detectBrowserPlatform()!;
+    const exe = computeExecutablePath({ browser: Browser.CHROME, buildId: '141.0.0.1', cacheDir, platform });
+    fs.mkdirSync(path.dirname(exe), { recursive: true });
+    const list = await listInstalled(cacheDir);
+    expect(list).toMatchObject([{ browser: 'chrome', buildId: '141.0.0.1', complete: false }]);
+    fs.writeFileSync(exe, '');
+    expect((await listInstalled(cacheDir))[0]?.complete).toBe(true);
+  });
+});

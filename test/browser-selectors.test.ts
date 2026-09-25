@@ -50,3 +50,14 @@ describe('browser: адрес для goto', () => {
     expect(normalizeUrl('orders', null)).toBeNull();
   });
 });
+
+describe('browser: относительные адреса при базовом URL', () => {
+  it('имя файла с расширением разрешается от базового URL, а не считается доменом', async () => {
+    const { normalizeUrl } = await import('../src/browser/selectors.js');
+    expect(normalizeUrl('index.html', 'http://localhost:3000')).toBe('http://localhost:3000/index.html');
+    expect(normalizeUrl('login.php?x=1', 'http://localhost:3000/app')).toBe('http://localhost:3000/app/login.php?x=1');
+    expect(normalizeUrl('example.com/path', 'http://localhost:3000')).toBe('http://localhost:3000/example.com/path');
+    expect(normalizeUrl('localhost:4000/x', 'http://localhost:3000')).toBe('http://localhost:4000/x');
+    expect(normalizeUrl('index.html', null)).toBeNull();
+  });
+});

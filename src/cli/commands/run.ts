@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { intOption } from '../args.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Command } from 'commander';
@@ -22,7 +23,7 @@ export function registerRun(program: Command): void {
     .description('Headless: выполнять фазы через адаптер среды до гейта, блокера, точки ожидания, лимита или конца')
     .option('--change <id>')
     .option('--runner <name>', 'claude | codex (по умолчанию из конфига)')
-    .option('--max-runs <n>', 'предел запусков ролей за вызов', (v: string) => Number.parseInt(v, 10))
+    .option('--max-runs <n>', 'предел запусков ролей за вызов', intOption)
     .option('--max-cost <usd>', 'предел стоимости за вызов', (v: string) => Number.parseFloat(v))
     .option('--detach', 'запустить в фоне и вернуть управление')
     .action(async (opts: { change?: string; runner?: string; maxRuns?: number; maxCost?: number; detach?: boolean }, cmd: Command) => {
@@ -77,7 +78,7 @@ export function registerRun(program: Command): void {
     .command('stop')
     .description('Остановить запуск роли и запретить доставку; изменение получает статус stopped')
     .option('--change <id>')
-    .option('--wait <seconds>', 'ждать завершения процесса', (v: string) => Number.parseInt(v, 10), 30)
+    .option('--wait <seconds>', 'ждать завершения процесса', intOption, 30)
     .action(async (opts: { change?: string; wait: number }, cmd: Command) => {
       const g = cmd.optsWithGlobals() as Globals;
       try {
@@ -117,8 +118,8 @@ export function registerRun(program: Command): void {
     .command('watch')
     .description('Ждать терминального статуса или остановки на гейте; выход 1 для parked, blocked, failed, stopped, delivery_unknown')
     .option('--change <id>')
-    .option('--interval <seconds>', 'период опроса', (v: string) => Number.parseInt(v, 10), 5)
-    .option('--timeout <minutes>', 'предел ожидания', (v: string) => Number.parseInt(v, 10), 240)
+    .option('--interval <seconds>', 'период опроса', intOption, 5)
+    .option('--timeout <minutes>', 'предел ожидания', intOption, 240)
     .action(async (opts: { change?: string; interval: number; timeout: number }, cmd: Command) => {
       const g = cmd.optsWithGlobals() as Globals;
       try {

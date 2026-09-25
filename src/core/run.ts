@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { loadChange, runDir, saveChange, type Change } from './change.js';
 import { computeChangeSet, isGitRepo } from './changeset.js';
@@ -10,7 +9,7 @@ import { nextStep, type NextStep, type Role } from './phases.js';
 import { applyReport, changesetExclude } from './report.js';
 import { chooseModel, READ_ONLY_ROLES, transportRetryAllowed, type AgentRunner, type RunResponse } from './runner.js';
 import { formatDiagnostics } from '../cli/output.js';
-import { toPosix, writeText } from './paths.js';
+import { expandHome, toPosix, writeText } from './paths.js';
 import type { Config } from './config.js';
 import type { SpecAdapter } from './spec-adapter.js';
 
@@ -52,7 +51,7 @@ export function clearStop(dir: string): void {
 }
 
 export function stateDirFor(config: Config, changeId: string, runId: string): string {
-  const base = config.runner.stateDir.replace(/^~(?=$|\/)/, os.homedir());
+  const base = expandHome(config.runner.stateDir);
   return path.join(base, changeId, runId);
 }
 

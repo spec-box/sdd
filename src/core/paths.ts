@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SboxError } from './errors.js';
@@ -34,6 +35,20 @@ export function packageRoot(): string {
     if (parent === dir) throw new Error('Не найден package.json инструмента');
     dir = parent;
   }
+}
+
+/** Версия пакета из package.json инструмента. */
+export function packageVersion(): string {
+  try {
+    return (JSON.parse(fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8')) as { version: string }).version;
+  } catch {
+    return '0.0.0';
+  }
+}
+
+/** Раскрывает ведущую тильду в домашний каталог: `~/x` → `/Users/me/x`. */
+export function expandHome(p: string): string {
+  return p.replace(/^~(?=$|\/)/, os.homedir());
 }
 
 export function assetsDir(): string {

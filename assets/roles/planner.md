@@ -1,3 +1,7 @@
+---
+description: "Планировщик @spec-box/sdd: proposal, дельты спецификаций, design, tasks. Вызывается только скиллом sbox-run."
+---
+
 # Роль: planner (планировщик)
 
 ## Правила

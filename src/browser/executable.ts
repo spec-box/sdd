@@ -130,6 +130,9 @@ export async function listCandidates(opts: ResolveOptions): Promise<ResolvedExec
     if (!fs.existsSync(opts.explicit.path)) {
       throw new SboxError('BROWSER_NOT_FOUND', `Исполняемый файл браузера не найден: ${opts.explicit.path} (источник: ${opts.explicit.source}).`, 'Проверьте путь или уберите его, чтобы включить автоматический поиск; `sbox-browser install` скачает Chrome.');
     }
+    if (headed && /chrome-headless-shell/i.test(opts.explicit.path)) {
+      throw new SboxError('BROWSER_HEADED_SHELL', `Браузер ${opts.explicit.path} (источник: ${opts.explicit.source}) это chrome-headless-shell: у него нет окна, для login и --headed он не годится.`, 'Укажите полный Chrome (например, из `sbox-browser install --browser chrome` или системный) либо уберите явный путь.');
+    }
     out.push({ path: opts.explicit.path, source: opts.explicit.source, browser: 'custom' });
   }
   out.push(...(await fromCache(opts.cacheDir, 'cache', headed)));

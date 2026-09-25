@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { intOption } from '../args.js';
 import type { Command } from 'commander';
 import { createChange, listChanges, saveChange, type Size } from '../../core/change.js';
 import { SboxError } from '../../core/errors.js';
@@ -54,7 +55,7 @@ export function registerChange(program: Command): void {
   change
     .command('resume [id]')
     .description('Продолжить изменение после parked, blocked, stopped, delivery_unknown или waiting_user')
-    .option('--returns <n>', 'новый лимит возвратов в фазу (для parked)', (v: string) => Number.parseInt(v, 10))
+    .option('--returns <n>', 'новый лимит возвратов в фазу (для parked)', intOption)
     .option('--comment <text>', 'ответ человека на блокер; попадёт в фидбэк роли')
     .action((id: string | undefined, opts: { returns?: number; comment?: string }, cmd: Command) => {
       const g = cmd.optsWithGlobals() as { json: boolean; cwd?: string };

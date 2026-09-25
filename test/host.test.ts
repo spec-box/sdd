@@ -39,13 +39,20 @@ describe('host: скиллы из единого источника', () => {
       expect(agent).toMatch(/\neffort: medium\n---/);
     }
     expect(result.notes).toEqual([]);
+    expect(result.next).toMatch(/Claude Code/);
+    const verifier = fs.readFileSync(path.join(root, '.claude/agents/sbox-verifier.md'), 'utf8');
+    expect(verifier).toContain('description: "Верификатор @spec-box/sdd:');
+    expect(verifier).toContain('tools: Read, Grep, Glob, Bash\n');
+    expect(verifier).toContain('\n# Роль: verifier');
+    expect(verifier).not.toContain('---\ndescription:');
   });
 
-  it('codex: те же скиллы в .agents/skills, агенты пока не генерируются', () => {
+  it('codex: скиллы в .agents/skills без sbox-run (metadata.hosts), агенты пока не генерируются', () => {
     const root = tempProject('spec-box-project', { git: false });
     const result = installHostMaterials(root, 'codex', loadConfig(root));
     const rel = result.files.map((f) => path.relative(root, f)).sort();
-    expect(rel).toEqual(BUILTIN.map((n) => SKILL_LAYOUT.codex(n)).sort());
+    expect(rel).toEqual(['sbox-approve', 'sbox-browser'].map((n) => SKILL_LAYOUT.codex(n)).sort());
+    expect(result.next).toMatch(/Codex/);
     expect(fs.readFileSync(path.join(root, '.agents/skills/sbox-browser/SKILL.md'), 'utf8')).toContain('name: sbox-browser');
     expect(fs.existsSync(path.join(root, '.claude'))).toBe(false);
     expect(result.notes.join(' ')).toMatch(/этапе 4/);
@@ -55,7 +62,7 @@ describe('host: скиллы из единого источника', () => {
   it('проект заменяет встроенный скилл и добавляет свой с привязкой к роли', () => {
     const root = tempProject('spec-box-project', { git: false });
     write(root, '.sbox/skills/sbox-browser.md', '---\nname: sbox-browser\ndescription: Наш браузерный регламент\nmetadata:\n  roles: [verifier]\n---\n\n# Наш регламент\n');
-    write(root, '.sbox/skills/release-notes.md', '---\nname: release-notes\ndescription: Как писать заметки к релизу\nmetadata:\n  roles: [planner]\n---\n\n# Заметки\n');
+    write(root, '.sbox/skills/release-notes.md', '---\nname: release-notes\ndescription: Как писать заметки к релизу\nmetadata:\n  roles: planner\n---\n\n# Заметки\n');
     const skills = loadSkills(root);
     expect(skills.find((s) => s.name === 'sbox-browser')).toMatchObject({ source: 'project', roles: ['verifier'] });
     expect(skillsForRole(skills, 'tester')).toEqual([]);
@@ -66,10 +73,22 @@ describe('host: скиллы из единого источника', () => {
     expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-tester.md'), 'utf8')).not.toContain('skills:');
   });
 
+  it('инструменты агентов берутся из runner.claude конфига', () => {
+    const root = tempProject('spec-box-project', { git: false });
+    const config = loadConfig(root);
+    config.runner.claude.allowedTools = ['Read', 'Edit'];
+    config.runner.claude.readOnlyTools = ['Read'];
+    installHostMaterials(root, 'claude', config);
+    expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-implementer.md'), 'utf8')).toContain('tools: Read, Edit\n');
+    expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-reviewer.md'), 'utf8')).toContain('tools: Read\n');
+  });
+
   it('проверяет фронтматтер скилла', () => {
     expect(() => parseSkill('# без фронтматтера\n', '/x/my.md', 'project')).toThrow(/BAD_SKILL|фронтматтера/);
     expect(() => parseSkill('---\nname: other\ndescription: d\n---\n', '/x/my.md', 'project')).toThrow(/совпадать с именем файла/);
     expect(() => parseSkill('---\nname: my\ndescription: d\nmetadata:\n  roles: [ninja]\n---\n', '/x/my.md', 'project')).toThrow(/неизвестная роль/);
+    expect(() => parseSkill('---\nname: my\ndescription: d\nmetadata:\n  roles: 42\n---\n', '/x/my.md', 'project')).toThrow(/списком/);
+    expect(parseSkill('---\nname: my\ndescription: d\nmetadata:\n  roles: tester, verifier\n  hosts: codex\n---\n', '/x/my.md', 'project')).toMatchObject({ roles: ['tester', 'verifier'], hosts: ['codex'] });
     expect(parseSkill('---\nname: my\ndescription: d\n---\nтело\n', '/x/my.md', 'builtin')).toMatchObject({ name: 'my', roles: [], source: 'builtin' });
   });
 });

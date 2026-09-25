@@ -35,14 +35,21 @@ export function urlMatches(url: string, pattern: string): boolean {
   return re.test(url);
 }
 
+const HOST_WITH_PORT = /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\]):\d+(\/|\?|#|$)/i;
+const BARE_DOMAIN = /^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d+)?(\/|\?|#|$)/i;
+/** `index.html` без базового URL это файл, а не домен: последняя метка из известных расширений. */
+const FILE_EXTENSION = /\.(html?|xhtml|php|aspx?|jsp|json|xml|txt|md|pdf|js|mjs|css|svg|png|jpe?g|gif|webp|ico|csv|yaml|yml)(\/|\?|#|$)/i;
+
 /**
- * Адрес для goto: полный URL как есть; `localhost:3000`, `example.com/path`, IP с портом получают http://;
- * относительный путь разрешается от базового URL; без базового URL относительный путь даёт null.
+ * Адрес для goto. Полный URL со схемой как есть; `localhost:3000/x` и IP с портом получают http://;
+ * при заданном базовом URL всё остальное разрешается от него (`index.html`, `/orders`, `orders/list`);
+ * без базового URL доменное имя получает http://, а относительный путь даёт null.
  */
 export function normalizeUrl(input: string, baseUrl: string | null): string | null {
   const url = input.trim();
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || /^(about|data|blob|file|javascript|mailto):/i.test(url)) return url;
-  if (/^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?(\/|\?|#|$)/i.test(url)) return `http://${url}`;
-  if (!baseUrl) return null;
-  return new URL(url, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
+  if (HOST_WITH_PORT.test(url)) return `http://${url}`;
+  if (baseUrl) return new URL(url, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
+  if (BARE_DOMAIN.test(url) && !FILE_EXTENSION.test(url.split('/')[0] ?? '')) return `http://${url}`;
+  return null;
 }

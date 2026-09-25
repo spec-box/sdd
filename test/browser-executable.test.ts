@@ -61,3 +61,13 @@ describe('browser: поиск исполняемого файла', () => {
     expect(await resolveExecutable({ ...offline, cacheDir: tmp('sbox-cache-') })).toBeNull();
   });
 });
+
+describe('browser: явный путь и режим окна', () => {
+  it('chrome-headless-shell не годится для окна', async () => {
+    const dir = tmp('sbox-shell-');
+    const shell = path.join(dir, 'chrome-headless-shell');
+    fs.writeFileSync(shell, '');
+    await expect(resolveExecutable({ ...offline, cacheDir: tmp('sbox-cache-'), explicit: { path: shell, source: 'env' }, headed: true })).rejects.toMatchObject({ code: 'BROWSER_HEADED_SHELL' });
+    expect((await resolveExecutable({ ...offline, cacheDir: tmp('sbox-cache-'), explicit: { path: shell, source: 'env' }, headed: false }))?.path).toBe(shell);
+  });
+});

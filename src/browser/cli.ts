@@ -1,15 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { Command } from 'commander';
-import { SboxError } from '../core/errors.js';
-import { packageRoot } from '../core/paths.js';
+import { Command, CommanderError, InvalidArgumentError } from 'commander';
+import { intOption } from '../cli/args.js';
 import { emit, emitError } from '../cli/output.js';
-import { sendCommand, spawnDaemon, stopSession } from './client.js';
-import { startDaemon } from './daemon.js';
-import { listCandidates, notFoundError, resolveExecutable } from './executable.js';
-import { INSTALLABLE, installBrowser, isInstallable, listInstalled, uninstallBrowser } from './install.js';
-import { browserHome, expandHome } from './paths.js';
+import { SboxError } from '../core/errors.js';
+import { packageVersion } from '../core/paths.js';
+import { budgetFor, sendCommand, spawnDaemon, stopSession, type LaunchSpec, type StopResult } from './client.js';
+import { browserHome } from './paths.js';
 import { assertSessionName, listSessions, readSession, type SessionInfo } from './session.js';
 import { loadBrowserSettings, parseViewport, type BrowserSettings, type SettingsFlags } from './settings.js';
 import type { LogEntry, NetEntry } from './commands.js';
@@ -17,28 +15,23 @@ import type { LogEntry, NetEntry } from './commands.js';
 interface Globals {
   json: boolean;
   session: string;
+  profile?: string;
   cwd?: string;
   timeout?: number;
 }
 
 function globals(cmd: Command): Globals {
-  const g = cmd.optsWithGlobals() as { json: boolean; session: string; cwd?: string; timeout?: number };
-  return { json: Boolean(g.json), session: assertSessionName(g.session ?? 'default'), cwd: g.cwd, timeout: g.timeout };
+  const g = cmd.optsWithGlobals() as { json: boolean; session: string; profile?: string; cwd?: string; timeout?: number };
+  return { json: Boolean(g.json), session: g.session ?? 'default', profile: g.profile, cwd: g.cwd, timeout: g.timeout };
 }
 
-function readVersion(): string {
+function sessionOption(value: string): string {
   try {
-    return (JSON.parse(fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8')) as { version: string }).version;
-  } catch {
-    return '0.0.0';
+    return assertSessionName(value);
+  } catch (e) {
+    throw new InvalidArgumentError((e as Error).message);
   }
 }
-
-const int = (v: string): number => {
-  const n = Number(v);
-  if (!Number.isFinite(n)) throw new SboxError('BROWSER_BAD_ARGS', `Ожидалось число, получено «${v}».`);
-  return n;
-};
 
 const note = (g: Globals, text: string): void => {
   if (!g.json) process.stderr.write(`${text}\n`);
@@ -46,12 +39,18 @@ const note = (g: Globals, text: string): void => {
 
 /** Сессия: работающая или поднятая только что по настройкам (флаги → окружение → конфиг). */
 async function ensureSession(g: Globals, flags: SettingsFlags = {}): Promise<{ info: SessionInfo; settings: BrowserSettings; started: boolean }> {
-  const settings = loadBrowserSettings({ cwd: g.cwd, timeout: g.timeout, ...flags });
+  const settings = loadBrowserSettings({ cwd: g.cwd, timeout: g.timeout, profile: g.profile, ...flags });
   const existing = readSession(g.session);
-  if (existing) return { info: existing, settings, started: false };
+  if (existing) {
+    if (settings.profile && existing.profile !== settings.profile) note(g, `сессия ${g.session} уже работает с профилем ${existing.profile ?? '(без профиля)'}, а запрошен ${settings.profile}: остановите её (\`sbox-browser stop\`) или используйте другое имя --session`);
+    return { info: existing, settings, started: false };
+  }
+  // Загрузчик и поиск браузера нужны только при запуске демона: не грузим их в каждую команду.
+  const { resolveExecutable, notFoundError } = await import('./executable.js');
   const exe = await resolveExecutable({ explicit: settings.executable, cacheDir: settings.cacheDir, headed: !settings.headless });
   if (!exe) throw notFoundError();
-  const info = await spawnDaemon(g.session, {
+  const spec: LaunchSpec = {
+    session: g.session,
     executable: exe.path,
     headless: settings.headless,
     profile: settings.profile,
@@ -60,15 +59,16 @@ async function ensureSession(g: Globals, flags: SettingsFlags = {}): Promise<{ i
     baseUrl: settings.baseUrl,
     timeoutMs: settings.timeoutMs,
     cwd: settings.projectRoot ?? process.cwd(),
-  });
+  };
+  const info = await spawnDaemon(spec);
   note(g, `сессия ${g.session} запущена: ${settings.headless ? 'headless' : 'окно'}, ${exe.path}${settings.profile ? `, профиль ${settings.profile}` : ''}`);
   return { info, settings, started: true };
 }
 
 async function send<T = Record<string, unknown>>(g: Globals, cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  await ensureSession(g);
+  const { settings } = await ensureSession(g);
   const withTimeout = g.timeout !== undefined && args.timeout === undefined ? { ...args, timeout: g.timeout } : args;
-  return sendCommand<T>(g.session, cmd, withTimeout);
+  return sendCommand<T>(g.session, cmd, withTimeout, { timeoutMs: budgetFor(cmd, withTimeout, settings.timeoutMs) });
 }
 
 /** Обёртка действия команды: единый вывод ошибок и код выхода. */
@@ -87,6 +87,21 @@ function action<A extends unknown[]>(fn: (g: Globals, ...args: A) => Promise<voi
 
 function describeSession(s: SessionInfo): string {
   return `${s.name}: pid ${s.pid}, ${s.headless ? 'headless' : 'окно'}, ${s.executable}${s.profile ? `, профиль ${s.profile}` : ''}, с ${s.startedAt}`;
+}
+
+function describeStop(session: string, r: StopResult): string {
+  switch (r.reason) {
+    case 'stopped':
+      return `Сессия ${session} остановлена (pid ${r.pid}).`;
+    case 'killed':
+      return `Сессия ${session} не вышла сама и остановлена сигналом (pid ${r.pid}).`;
+    case 'stale':
+      return `Сессия ${session} уже не работала: устаревший след снят.`;
+    case 'foreign_pid':
+      return `След сессии ${session} указывал на чужой процесс ${r.pid}: след снят, процесс не тронут.`;
+    default:
+      return `Сессия ${session} не была запущена.`;
+  }
 }
 
 function formatLog(e: LogEntry): string {
@@ -112,21 +127,25 @@ export function buildBrowserProgram(): Command {
   program
     .name('sbox-browser')
     .description('Браузер для проверки интерфейса: команды для агентов и людей поверх puppeteer-core')
-    .version(readVersion())
+    .version(packageVersion())
+    // Ошибки разбора не завершают процесс сами: main() печатает их в общем конверте (--json) и ставит код выхода.
+    .exitOverride()
     .option('--json', 'один JSON-документ в stdout', false)
-    .option('--session <name>', 'имя сессии браузера', 'default')
+    .option('--session <name>', 'имя сессии браузера', sessionOption, 'default')
+    .option('--profile <name>', 'постоянный профиль (куки, вход) в ~/.sbox/browser/profiles или путь к каталогу; действует при запуске сессии')
     .option('--cwd <dir>', 'корень проекта или каталог внутри него (для browser в .sbox/config.yaml)')
-    .option('--timeout <ms>', 'таймаут действий и ожиданий, мс', int);
+    .option('--timeout <ms>', 'таймаут действий и ожиданий, мс', intOption);
 
   // --- браузеры ---
   program
     .command('install')
     .description('Скачать браузер в кэш инструмента (~/.sbox/browser/cache); повторный вызов ничего не качает')
-    .option('--browser <name>', `какой: ${INSTALLABLE.join(' | ')}`, 'chrome')
+    .option('--browser <name>', 'какой: chrome | chrome-headless-shell | chromium', 'chrome')
     .option('--build <tag>', 'stable | beta | dev | canary | latest | точный buildId (по умолчанию stable, для chromium latest)')
     .option('--cache-dir <dir>', 'куда ставить (по умолчанию из настроек)')
     .action(
       action(async (g, o: { browser: string; build?: string; cacheDir?: string }) => {
+        const { INSTALLABLE, installBrowser, isInstallable } = await import('./install.js');
         if (!isInstallable(o.browser)) throw new SboxError('BROWSER_BAD_ARGS', `Неизвестный браузер «${o.browser}»; доступны ${INSTALLABLE.join(', ')}.`);
         const settings = loadBrowserSettings({ cwd: g.cwd, cacheDir: o.cacheDir });
         let lastPercent = -1;
@@ -153,9 +172,10 @@ export function buildBrowserProgram(): Command {
     .description('Браузеры в кэше инструмента')
     .action(
       action(async (g) => {
+        const { listInstalled } = await import('./install.js');
         const settings = loadBrowserSettings({ cwd: g.cwd });
         const list = await listInstalled(settings.cacheDir);
-        emit(g, { cacheDir: settings.cacheDir, browsers: list }, (d) => (d.browsers.length ? d.browsers.map((b) => `${b.browser} ${b.buildId} (${b.platform})\n  ${b.executablePath}`).join('\n') : `Кэш ${d.cacheDir} пуст: \`sbox-browser install\` скачает Chrome.`));
+        emit(g, { cacheDir: settings.cacheDir, browsers: list }, (d) => (d.browsers.length ? d.browsers.map((b) => `${b.browser} ${b.buildId} (${b.platform})${b.complete ? '' : ' — неполная установка, повторите install'}\n  ${b.executablePath}`).join('\n') : `Кэш ${d.cacheDir} пуст: \`sbox-browser install\` скачает Chrome.`));
       }),
     );
 
@@ -166,6 +186,7 @@ export function buildBrowserProgram(): Command {
     .requiredOption('--build <buildId>', 'точный buildId из `sbox-browser installed`')
     .action(
       action(async (g, o: { browser: string; build: string }) => {
+        const { uninstallBrowser } = await import('./install.js');
         const settings = loadBrowserSettings({ cwd: g.cwd });
         await uninstallBrowser({ browser: o.browser, buildId: o.build, cacheDir: settings.cacheDir });
         emit(g, { browser: o.browser, buildId: o.build }, (d) => `Удалён ${d.browser} ${d.buildId}.`);
@@ -177,14 +198,16 @@ export function buildBrowserProgram(): Command {
     .description('Какой браузер будет использован, откуда он взят, какие сессии работают')
     .action(
       action(async (g) => {
-        const settings = loadBrowserSettings({ cwd: g.cwd });
+        const { listCandidates } = await import('./executable.js');
+        const settings = loadBrowserSettings({ cwd: g.cwd, profile: g.profile });
+        const headed = !settings.headless;
         let candidates: Awaited<ReturnType<typeof listCandidates>> = [];
         let explicitError: string | null = null;
         try {
-          candidates = await listCandidates({ explicit: settings.executable, cacheDir: settings.cacheDir });
+          candidates = await listCandidates({ explicit: settings.executable, cacheDir: settings.cacheDir, headed });
         } catch (e) {
           explicitError = (e as Error).message;
-          candidates = await listCandidates({ cacheDir: settings.cacheDir });
+          candidates = await listCandidates({ cacheDir: settings.cacheDir, headed });
         }
         const chosen = candidates[0] ?? null;
         emit(g, { chosen, candidates, explicitError, home: browserHome(), cacheDir: settings.cacheDir, headless: settings.headless, profile: settings.profile, baseUrl: settings.baseUrl, projectRoot: settings.projectRoot, sessions: listSessions() }, (d) => {
@@ -205,19 +228,18 @@ export function buildBrowserProgram(): Command {
     .command('start')
     .description('Запустить сессию браузера в фоне (обычно не нужно: команды страницы делают это сами)')
     .option('--headed', 'с окном, а не headless')
-    .option('--profile <name>', 'постоянный профиль (куки, вход) в ~/.sbox/browser/profiles или путь к каталогу')
     .option('--executable <path>', 'исполняемый файл браузера')
     .option('--viewport <WxH>', 'размер окна, например 1280x800')
-    .option('--idle <min>', 'минут без команд до самозавершения; 0 — не завершаться', int)
+    .option('--idle <min>', 'минут без команд до самозавершения; 0 — не завершаться', intOption)
     .option('--base-url <url>', 'базовый адрес для относительных URL')
     .action(
-      action(async (g, o: { headed?: boolean; profile?: string; executable?: string; viewport?: string; idle?: number; baseUrl?: string }) => {
+      action(async (g, o: { headed?: boolean; executable?: string; viewport?: string; idle?: number; baseUrl?: string }) => {
         const existing = readSession(g.session);
         if (existing) {
           emit(g, { started: false, session: existing }, (d) => `Сессия уже работает: ${describeSession(d.session)}`);
           return;
         }
-        const { info, settings } = await ensureSession(g, { headed: o.headed, profile: o.profile, executable: o.executable, viewport: o.viewport, idle: o.idle, baseUrl: o.baseUrl });
+        const { info, settings } = await ensureSession(g, { headed: o.headed, executable: o.executable, viewport: o.viewport, idle: o.idle, baseUrl: o.baseUrl });
         emit(g, { started: true, session: info, settings: { headless: settings.headless, profile: settings.profile, baseUrl: settings.baseUrl } }, (d) => `Запущена ${describeSession(d.session)}`);
       }),
     );
@@ -228,7 +250,7 @@ export function buildBrowserProgram(): Command {
     .action(
       action(async (g) => {
         const result = await stopSession(g.session);
-        emit(g, { session: g.session, ...result }, (d) => (d.stopped ? `Сессия ${d.session} остановлена (pid ${d.pid}).` : `Сессия ${d.session} не была запущена.`));
+        emit(g, { session: g.session, ...result }, (d) => describeStop(d.session, d));
       }),
     );
 
@@ -242,7 +264,7 @@ export function buildBrowserProgram(): Command {
           emit(g, { running: false, session: g.session }, (d) => `Сессия ${d.session} не запущена.`);
           return;
         }
-        const ping = await sendCommand<{ pages: number; current: number; url: string | null; uptimeMs: number }>(g.session, 'ping');
+        const ping = await sendCommand<{ pages: number; current: number; url: string | null; uptimeMs: number }>(g.session, 'ping', {}, { timeoutMs: 10_000 });
         emit(g, { running: true, session: info, pages: ping.pages, current: ping.current, url: ping.url, uptimeMs: ping.uptimeMs }, (d) => `${describeSession(d.session)}\nвкладок: ${d.pages}, текущая: ${d.current} ${d.url ?? ''}`);
       }),
     );
@@ -257,30 +279,15 @@ export function buildBrowserProgram(): Command {
       }),
     );
 
-  // Глобальные --session, --timeout и --cwd commander разбирает в любой позиции, поэтому serve их не переопределяет.
+  // Демон получает все параметры одним JSON: настройки разрешает клиент, второй копии значений по умолчанию нет.
   program
     .command('serve', { hidden: true })
     .description('Процесс демона (запускается клиентом)')
-    .requiredOption('--executable <path>')
-    .option('--headless')
-    .option('--headed')
-    .option('--viewport <WxH>', '', '1280x800')
-    .option('--idle <min>', '', int, 30)
-    .option('--profile <name>')
-    .option('--base-url <url>')
-    .action(async (o: { executable: string; headless?: boolean; headed?: boolean; viewport: string; idle: number; profile?: string; baseUrl?: string }, cmd: Command) => {
-      const g = globals(cmd);
-      const handle = await startDaemon({
-        session: g.session,
-        executable: expandHome(o.executable),
-        headless: !o.headed,
-        profile: o.profile ?? null,
-        viewport: parseViewport(o.viewport),
-        idleMinutes: o.idle,
-        baseUrl: o.baseUrl ?? null,
-        timeoutMs: g.timeout ?? 15_000,
-        cwd: g.cwd ?? process.cwd(),
-      });
+    .requiredOption('--spec <json>', 'параметры запуска (LaunchSpec)')
+    .action(async (o: { spec: string }) => {
+      const spec = JSON.parse(o.spec) as LaunchSpec;
+      const { startDaemon } = await import('./daemon.js');
+      const handle = await startDaemon({ ...spec, session: assertSessionName(spec.session) });
       const shutdown = (): void => {
         void handle.stop();
         setTimeout(() => process.exit(1), 10_000).unref();
@@ -294,33 +301,33 @@ export function buildBrowserProgram(): Command {
   // --- вход человеком и перенос состояния ---
   program
     .command('login <url>')
-    .description('Открыть окно браузера, чтобы человек вошёл в приложение; вход остаётся в профиле для следующих команд и сессий')
-    .option('--profile <name>', 'постоянный профиль для сохранения входа (рекомендуется)')
+    .description('Открыть окно браузера, чтобы человек вошёл в приложение; вход остаётся в профиле (--profile) для следующих команд и сессий')
     .option('--until <target>', 'считать вход завершённым, когда появится элемент (селектор)')
     .option('--until-url <pattern>', 'считать вход завершённым, когда адрес совпадёт с шаблоном (подстрока или glob)')
-    .option('--minutes <n>', 'сколько ждать входа', int, 10)
+    .option('--minutes <n>', 'сколько ждать входа', intOption, 10)
     .option('--executable <path>', 'исполняемый файл браузера')
     .action(
-      action(async (g, url: string, o: { profile?: string; until?: string; untilUrl?: string; minutes: number; executable?: string }) => {
-        const settings = loadBrowserSettings({ cwd: g.cwd, headed: true, profile: o.profile, executable: o.executable, timeout: g.timeout });
+      action(async (g, url: string, o: { until?: string; untilUrl?: string; minutes: number; executable?: string }) => {
+        const settings = loadBrowserSettings({ cwd: g.cwd, headed: true, profile: g.profile, executable: o.executable, timeout: g.timeout });
         const existing = readSession(g.session);
         if (existing?.headless) throw new SboxError('BROWSER_SESSION_HEADLESS', `Сессия ${g.session} уже работает без окна.`, `Остановите её: \`sbox-browser stop --session ${g.session}\`, либо укажите другую --session.`);
         if (existing && settings.profile && existing.profile !== settings.profile) throw new SboxError('BROWSER_SESSION_PROFILE', `Сессия ${g.session} открыта с профилем ${existing.profile ?? '(без профиля)'}, а нужен ${settings.profile}.`, 'Остановите сессию или выберите другое имя --session.');
-        await ensureSession(g, { headed: true, profile: o.profile, executable: o.executable });
-        const nav = await sendCommand<{ url: string; title: string }>(g.session, 'goto', { url, wait: 'load' });
+        await ensureSession(g, { headed: true, executable: o.executable });
+        const nav = await sendCommand<{ url: string; title: string }>(g.session, 'goto', { url, wait: 'load' }, { timeoutMs: budgetFor('goto', {}, settings.timeoutMs) });
         if (!settings.profile) note(g, 'Профиль не задан: вход сохранится только пока работает эта сессия. Для постоянного входа укажите --profile <имя>.');
         const timeout = o.minutes * 60_000;
         if (o.until || o.untilUrl) {
           note(g, `Ожидание входа до ${o.minutes} мин: ${o.until ? `элемент ${o.until}` : ''}${o.untilUrl ? `адрес ${o.untilUrl}` : ''}`);
-          await sendCommand(g.session, 'wait', { ...(o.until ? { target: o.until } : {}), ...(o.untilUrl ? { url: o.untilUrl } : {}), timeout }, { timeoutMs: timeout + 10_000 });
+          const args = { ...(o.until ? { target: o.until } : {}), ...(o.untilUrl ? { url: o.untilUrl } : {}), timeout };
+          await sendCommand(g.session, 'wait', args, { timeoutMs: budgetFor('wait', args, timeout) });
         } else if (process.stdin.isTTY) {
           process.stderr.write(`Открыто ${nav.url}. Войдите в приложение в окне браузера и нажмите Enter здесь.\n`);
           await waitForEnter();
         } else {
           throw new SboxError('BROWSER_LOGIN_NEEDS_TTY', 'Нет терминала, чтобы дождаться подтверждения входа.', 'Укажите --until <селектор> или --until-url <шаблон>: вход завершится автоматически.');
         }
-        const { url: current } = await sendCommand<{ url: string }>(g.session, 'url');
-        const { cookies } = await sendCommand<{ cookies: { domain: string }[] }>(g.session, 'cookies', { action: 'list' });
+        const { url: current } = await sendCommand<{ url: string }>(g.session, 'url', {}, { timeoutMs: 10_000 });
+        const { cookies } = await sendCommand<{ cookies: { domain: string }[] }>(g.session, 'cookies', { action: 'list' }, { timeoutMs: 10_000 });
         const host = new URL(current).hostname;
         const relevant = cookies.filter((c) => host === c.domain.replace(/^\./, '') || host.endsWith(c.domain.startsWith('.') ? c.domain : `.${c.domain}`)).length;
         emit(g, { url: current, profile: settings.profile, cookies: relevant, session: g.session }, (d) =>
@@ -328,7 +335,7 @@ export function buildBrowserProgram(): Command {
             `Вход завершён: ${d.url}, куки для этого хоста: ${d.cookies}${d.profile ? `, профиль ${d.profile}` : ''}.`,
             `Эта сессия остаётся открытой с окном: команды \`sbox-browser goto …\` продолжат работу под входом.`,
             ...(d.profile
-              ? [`Headless-работа под этим профилем: \`sbox-browser stop\`, затем любая команда с \`--profile ${d.profile}\` или browser.profile: ${d.profile} в .sbox/config.yaml.`]
+              ? [`Headless-работа под этим профилем: \`sbox-browser stop\`, затем любая команда с глобальным флагом \`--profile ${d.profile}\` (например \`sbox-browser --profile ${d.profile} goto <url>\`) или browser.profile: ${d.profile} в .sbox/config.yaml.`]
               : []),
             `Перенос входа в CI или на другую машину: \`sbox-browser state save auth.json\` (секрет, не коммитить) и там \`sbox-browser state load auth.json\`.`,
           ].join('\n'),
@@ -371,7 +378,7 @@ export function buildBrowserProgram(): Command {
       .command(name)
       .description({ back: 'Назад по истории', forward: 'Вперёд по истории', reload: 'Перезагрузить страницу' }[name])
       .option('--wait <event>', 'load | domcontentloaded | networkidle', 'load')
-      .action(action(async (g, o: { wait: string }) => emit(g, await send(g, name, { wait: o.wait }), (d) => `${String(d.url)}\n${String(d.title)}`)));
+      .action(action(async (g, o: { wait: string }) => emit(g, await send(g, name, { wait: o.wait }), (d) => `${String(d.status ?? '—')} ${String(d.url)}\n${String(d.title)}`)));
   }
   program.command('url').description('Текущий адрес').action(action(async (g) => emit(g, await send(g, 'url'), (d) => String(d.url))));
   program.command('title').description('Заголовок страницы').action(action(async (g) => emit(g, await send(g, 'title'), (d) => String(d.title))));
@@ -382,8 +389,8 @@ export function buildBrowserProgram(): Command {
     .action(action(async (g) => emit(g, await send<{ pages: { index: number; url: string; title: string; current: boolean }[] }>(g, 'pages'), (d) => d.pages.map((p) => `${p.current ? '*' : ' '} ${p.index}: ${p.url} — ${p.title}`).join('\n'))));
   const page = program.command('page').description('Вкладки: new, switch, close');
   page.command('new [url]').description('Открыть вкладку и сделать текущей').action(action(async (g, url?: string) => emit(g, await send(g, 'page.new', url ? { url } : {}), (d) => `вкладка ${String(d.index)}: ${String(d.url)}`)));
-  page.command('switch <index>').description('Переключиться на вкладку').action(action(async (g, index: string) => emit(g, await send(g, 'page.switch', { index: int(index) }), (d) => `вкладка ${String(d.index)}: ${String(d.url)}`)));
-  page.command('close [index]').description('Закрыть вкладку (по умолчанию текущую)').action(action(async (g, index?: string) => emit(g, await send(g, 'page.close', index !== undefined ? { index: int(index) } : {}), (d) => (d.closed ? `закрыта; вкладок: ${String(d.pages)}` : String(d.note)))));
+  page.command('switch <index>').description('Переключиться на вкладку').action(action(async (g, index: string) => emit(g, await send(g, 'page.switch', { index: intOption(index) }), (d) => `вкладка ${String(d.index)}: ${String(d.url)}`)));
+  page.command('close [index]').description('Закрыть вкладку (по умолчанию текущую)').action(action(async (g, index?: string) => emit(g, await send(g, 'page.close', index !== undefined ? { index: intOption(index) } : {}), (d) => (d.closed ? `закрыта; вкладок: ${String(d.pages)}` : String(d.note)))));
 
   // --- действия ---
   program
@@ -398,13 +405,13 @@ export function buildBrowserProgram(): Command {
   program
     .command('type <target> <text>')
     .description('Напечатать текст в элемент (добавляя к имеющемуся)')
-    .option('--delay <ms>', 'задержка между символами', int)
+    .option('--delay <ms>', 'задержка между символами', intOption)
     .option('--clear', 'сначала очистить поле')
     .action(action(async (g, target: string, text: string, o: { delay?: number; clear?: boolean }) => emit(g, await send(g, 'type', { target, text, delay: o.delay, clear: o.clear }), (d) => `введено ${String(d.typed)} символов, значение: ${String(d.value)}`)));
   program.command('fill <target> <text>').description('Очистить поле и ввести текст').action(action(async (g, target: string, text: string) => emit(g, await send(g, 'type', { target, text, clear: true }), (d) => `значение: ${String(d.value)}`)));
   program
     .command('press <key>')
-    .description('Нажать клавишу: Enter, Tab, Escape, ArrowDown, Control+a …')
+    .description('Нажать клавишу: Enter, Tab, Escape, ArrowDown, ctrl+a, ctrl++, пробел в кавычках …')
     .option('--target <target>', 'сначала сфокусировать элемент')
     .action(action(async (g, key: string, o: { target?: string }) => emit(g, await send(g, 'press', { key, target: o.target }), (d) => `нажато ${String(d.pressed)} → ${String(d.url)}`)));
   program.command('select <target> <values...>').description('Выбрать значения в <select>').action(action(async (g, target: string, values: string[]) => emit(g, await send<{ selected: string[] }>(g, 'select', { target, values }), (d) => `выбрано: ${d.selected.join(', ')}`)));
@@ -414,8 +421,8 @@ export function buildBrowserProgram(): Command {
   program
     .command('scroll [target]')
     .description('Прокрутить к элементу или страницу на число пикселей')
-    .option('--down <px>', 'вниз', int)
-    .option('--up <px>', 'вверх', int)
+    .option('--down <px>', 'вниз', intOption)
+    .option('--up <px>', 'вверх', intOption)
     .action(action(async (g, target: string | undefined, o: { down?: number; up?: number }) => emit(g, await send(g, 'scroll', { target, dy: o.up !== undefined ? -o.up : (o.down ?? 600) }), (d) => (d.scrolledTo ? `прокручено к элементу` : `позиция: ${JSON.stringify(d.position)}`))));
 
   program
@@ -426,32 +433,32 @@ export function buildBrowserProgram(): Command {
     .option('--text <text>', 'текст появился на странице')
     .option('--url <pattern>', 'адрес совпал: подстрока или glob')
     .option('--fn <js>', 'JS-выражение стало истинным')
-    .option('--ms <n>', 'просто пауза', int)
+    .option('--ms <n>', 'просто пауза', intOption)
     .action(action(async (g, target: string | undefined, o: { hidden?: boolean; attached?: boolean; text?: string; url?: string; fn?: string; ms?: number }) => emit(g, await send<{ waited: string[]; url: string }>(g, 'wait', { target, state: o.hidden ? 'hidden' : o.attached ? 'attached' : undefined, text: o.text, url: o.url, fn: o.fn, ms: o.ms }), (d) => `дождались: ${d.waited.join('; ')} → ${d.url}`)));
 
   // --- чтение ---
   program
     .command('text [target]')
     .description('Видимый текст страницы или элемента')
-    .option('--limit <chars>', 'обрезать до N символов', int)
+    .option('--limit <chars>', 'обрезать до N символов', intOption)
     .action(action(async (g, target: string | undefined, o: { limit?: number }) => emit(g, await send<{ text: string; truncated: boolean; length: number }>(g, 'text', { target, limit: o.limit }), (d) => `${d.text}${d.truncated ? `\n… (обрезано: всего ${d.length} символов)` : ''}`)));
   program
     .command('html [target]')
     .description('HTML страницы или элемента')
     .option('--inner', 'innerHTML вместо outerHTML')
-    .option('--limit <chars>', 'обрезать до N символов', int)
+    .option('--limit <chars>', 'обрезать до N символов', intOption)
     .action(action(async (g, target: string | undefined, o: { inner?: boolean; limit?: number }) => emit(g, await send<{ html: string; truncated: boolean; length: number }>(g, 'html', { target, outer: !o.inner, limit: o.limit }), (d) => `${d.html}${d.truncated ? `\n… (обрезано: всего ${d.length} символов)` : ''}`)));
   program.command('attr <target> <name>').description('Значение атрибута').action(action(async (g, target: string, name: string) => emit(g, await send(g, 'attr', { target, name }), (d) => String(d.value ?? ''))));
   program.command('value <target>').description('Значение поля ввода').action(action(async (g, target: string) => emit(g, await send(g, 'value', { target }), (d) => String(d.value ?? ''))));
   program.command('count <target>').description('Сколько элементов подходит под селектор').action(action(async (g, target: string) => emit(g, await send(g, 'count', { target }), (d) => String(d.count))));
-  program.command('exists <target>').description('Есть ли элемент (без ожидания)').action(action(async (g, target: string) => emit(g, await send(g, 'exists', { target }), (d) => (d.exists ? `есть${d.visible ? ', видим' : ', скрыт'}` : 'нет'))));
-  program.command('eval <code>').description('Выполнить JS на странице и вернуть результат (JSON)').action(action(async (g, code: string) => emit(g, await send(g, 'eval', { code }), (d) => JSON.stringify(d.result, null, 2))));
+  program.command('exists <target>').description('Есть ли элемент на странице сейчас (без ожидания); для [eN] проверяется живой элемент').action(action(async (g, target: string) => emit(g, await send(g, 'exists', { target }), (d) => (d.exists ? `есть${d.visible ? ', видим' : ', скрыт'}` : 'нет'))));
+  program.command('eval <code>').description('Выполнить JS на странице: выражение, список инструкций или тело функции с return/await; результат в JSON').action(action(async (g, code: string) => emit(g, await send(g, 'eval', { code }), (d) => JSON.stringify(d.result, null, 2))));
   program
     .command('snapshot')
     .description('Снимок дерева доступности со ссылками [eN] для click/type/fill')
     .option('--interactive', 'только элементы, с которыми можно взаимодействовать')
     .option('--root <target>', 'только поддерево элемента')
-    .option('--max <chars>', 'предел размера', int)
+    .option('--max <chars>', 'предел размера', intOption)
     .action(action(async (g, o: { interactive?: boolean; root?: string; max?: number }) => emit(g, await send<{ url: string; title: string; count: number; text: string; truncated: boolean }>(g, 'snapshot', { interactive: o.interactive, root: o.root, maxChars: o.max }), (d) => `# ${d.url} — ${d.title} (${d.count} элементов)\n${d.text}`)));
   program
     .command('screenshot')
@@ -485,10 +492,10 @@ export function buildBrowserProgram(): Command {
     .option('--secure')
     .option('--http-only')
     .action(action(async (g, name: string, value: string, o: { domain?: string; url?: string; path: string; secure?: boolean; httpOnly?: boolean }) => emit(g, await send(g, 'cookies', { action: 'set', cookies: [{ name, value, domain: o.domain, url: o.url, path: o.path, secure: o.secure, httpOnly: o.httpOnly }] }), (d) => `установлено: ${String(d.set)}`)));
-  program.command('viewport <WxH>').description('Размер окна, например 1280x800').action(action(async (g, size: string) => emit(g, await send(g, 'viewport', parseViewport(size)), (d) => JSON.stringify(d.viewport))));
+  program.command('viewport <WxH>').description('Размер окна для текущей и новых вкладок, например 1280x800').action(action(async (g, size: string) => emit(g, await send(g, 'viewport', parseViewport(size)), (d) => JSON.stringify(d.viewport))));
   program
     .command('dialog [action]')
-    .description('Политика для alert/confirm/prompt: accept | dismiss; без аргумента — показать текущую и последние диалоги')
+    .description('Политика для alert/confirm/prompt: accept | dismiss (beforeunload подтверждается всегда); без аргумента — текущая политика и последние диалоги')
     .option('--text <text>', 'ответ для prompt')
     .action(action(async (g, act: string | undefined, o: { text?: string }) => emit(g, await send<{ policy: { action: string; text?: string }; recent: LogEntry[] }>(g, 'dialog', { action: act, text: o.text }), (d) => `политика: ${d.policy.action}${d.policy.text !== undefined ? ` («${d.policy.text}»)` : ''}${d.recent.length ? `\nпоследние: ${d.recent.map((e) => `${e.type}: ${e.text}`).join('; ')}` : ''}`)));
   program.command('auth <user> <password>').description('HTTP Basic-аутентификация для текущей вкладки').action(action(async (g, user: string, password: string) => emit(g, await send(g, 'auth', { username: user, password }), (d) => `basic auth: ${String(d.auth)}`)));
@@ -497,8 +504,23 @@ export function buildBrowserProgram(): Command {
   return program;
 }
 
+/** Точка входа: ошибки разбора аргументов и неожиданные ошибки тоже идут в общем конверте при --json. */
 export async function main(argv: string[]): Promise<void> {
-  await buildBrowserProgram().parseAsync(argv);
+  const json = argv.includes('--json');
+  const program = buildBrowserProgram();
+  program.configureOutput({ writeErr: (s) => { if (!json) process.stderr.write(s); } });
+  try {
+    await program.parseAsync(argv);
+  } catch (e) {
+    if (e instanceof CommanderError) {
+      if (e.exitCode === 0) return;
+      emitError({ json }, new SboxError('BROWSER_BAD_ARGS', e.message.replace(/^error: /, '').trim(), 'Справка: `sbox-browser --help` или `sbox-browser <команда> --help`.'));
+      process.exitCode = e.exitCode || 1;
+      return;
+    }
+    emitError({ json }, e);
+    process.exitCode = 1;
+  }
 }
 
 const invokedDirectly = process.argv[1] && /browser[\\/]cli\.(ts|js)$/.test(process.argv[1]);

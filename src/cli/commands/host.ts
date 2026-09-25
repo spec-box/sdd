@@ -20,7 +20,7 @@ export function registerHost(program: Command): void {
         const ctx = projectContext(g.cwd);
         const result = installHostMaterials(ctx.root, opts.target, ctx.config);
         const files = result.files.map((f) => path.relative(ctx.root, f));
-        emit(g, { target: result.target, files, notes: result.notes, claudeMdSnippet: CLAUDE_MD_SNIPPET }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), ...d.notes.map((n) => `  ! ${n}`), '', d.target === 'claude' ? 'Откройте Claude Code в корне проекта и вызовите /sbox-run.' : 'Откройте Codex в корне проекта: скиллы доступны из .agents/skills.', 'Рекомендуемая строка для CLAUDE.md или AGENTS.md проекта:', '', d.claudeMdSnippet].join('\n'));
+        emit(g, { target: result.target, files, notes: result.notes, next: result.next, claudeMdSnippet: CLAUDE_MD_SNIPPET }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), ...d.notes.map((n) => `  ! ${n}`), '', d.next, 'Рекомендуемая строка для CLAUDE.md или AGENTS.md проекта:', '', d.claudeMdSnippet].join('\n'));
       } catch (e) {
         emitError(g, e);
         process.exitCode = 1;

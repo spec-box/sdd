@@ -1,3 +1,7 @@
+---
+description: "Исследователь @spec-box/sdd: Evidence Pack по изменению. Вызывается только скиллом sbox-run."
+---
+
 # Роль: researcher (исследователь)
 
 ## Правила

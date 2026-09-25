@@ -17,3 +17,12 @@ describe('browser: комбинации клавиш', () => {
     expect(parseKeyCombo('+')).toEqual({ modifiers: [], key: '+' });
   });
 });
+
+describe('browser: пробел и плюс как клавиши', () => {
+  it('пробел, плюс и комбинации с плюсом', () => {
+    expect(parseKeyCombo(' ')).toEqual({ modifiers: [], key: ' ' });
+    expect(parseKeyCombo('ctrl++')).toEqual({ modifiers: ['Control'], key: '+' });
+    expect(parseKeyCombo('ctrl+shift++')).toEqual({ modifiers: ['Control', 'Shift'], key: '+' });
+    expect(parseKeyCombo('shift+ ')).toEqual({ modifiers: ['Shift'], key: ' ' });
+  });
+});

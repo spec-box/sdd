@@ -14,11 +14,14 @@ export function emit<T extends object>(opts: OutputOptions, data: T, human: (d: 
   }
 }
 
+/** Ошибка в машиночитаемом виде: код, сообщение, подсказка. Общая для CLI и демона браузера. */
+export function errorPayload(err: unknown, fallbackCode = 'UNEXPECTED'): { code: string; message: string; fix?: string } {
+  if (err instanceof SboxError) return { code: err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
+  return { code: fallbackCode, message: err instanceof Error ? err.message : String(err) };
+}
+
 export function emitError(opts: OutputOptions, err: unknown): void {
-  const status: Diagnostic[] =
-    err instanceof SboxError
-      ? [{ severity: 'error', code: err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) }]
-      : [{ severity: 'error', code: 'UNEXPECTED', message: err instanceof Error ? err.message : String(err) }];
+  const status: Diagnostic[] = [{ severity: 'error', ...errorPayload(err) }];
   if (opts.json) {
     process.stdout.write(`${JSON.stringify({ ok: false, status }, null, 2)}\n`);
   } else {

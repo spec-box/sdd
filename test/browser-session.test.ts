@@ -43,3 +43,35 @@ describe('browser: файл сессии', () => {
     expect(socketPath('x', env(), 'darwin').endsWith(path.join('sessions', 'x.sock'))).toBe(true);
   });
 });
+
+describe('browser: блокировка имени сессии и владение следом', () => {
+  it('вторая блокировка при живом владельце отклоняется, после освобождения берётся', async () => {
+    const { acquireSessionLock, readLock, removeSessionIfOwned, writeSession } = await import('../src/browser/session.js');
+    const e = env();
+    const release = acquireSessionLock('x', e);
+    expect(readLock('x', e)?.pid).toBe(process.pid);
+    expect(() => acquireSessionLock('x', e)).toThrow(/BROWSER_SESSION_EXISTS|уже поднимается/);
+    release();
+    expect(readLock('x', e)).toBeNull();
+    const again = acquireSessionLock('x', e);
+    again();
+    // Владение следом: чужой pid в файле сессии не даёт удалить его.
+    writeSession(info('x', process.pid + 100000), e);
+    expect(removeSessionIfOwned('x', process.pid, e)).toBe(false);
+    expect(fs.existsSync(sessionFile('x', e))).toBe(true);
+    writeSession(info('x', process.pid), e);
+    expect(removeSessionIfOwned('x', process.pid, e)).toBe(true);
+    expect(fs.existsSync(sessionFile('x', e))).toBe(false);
+  });
+
+  it('устаревшая блокировка мёртвого процесса забирается', async () => {
+    const { acquireSessionLock, lockFile, readLock } = await import('../src/browser/session.js');
+    const e = env();
+    const file = lockFile('dead', e);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ pid: 999_999_999, at: new Date().toISOString() }));
+    const release = acquireSessionLock('dead', e);
+    expect(readLock('dead', e)?.pid).toBe(process.pid);
+    release();
+  });
+});

@@ -1,4 +1,5 @@
 import type { Command } from 'commander';
+import { intOption } from '../args.js';
 import { loadChange, saveChange } from '../../core/change.js';
 import { SboxError } from '../../core/errors.js';
 import { allChangeDirs, changeMetrics, findChangeDir, summarize } from '../../core/metrics.js';
@@ -42,7 +43,7 @@ export function registerRate(change: Command): void {
   change
     .command('rate <id>')
     .description('Оценка результата человеком после проверки: 1–5 и комментарий')
-    .requiredOption('--score <n>', '1 (переделывать) … 5 (принял без правок)', (v: string) => Number.parseInt(v, 10))
+    .requiredOption('--score <n>', '1 (переделывать) … 5 (принял без правок)', intOption)
     .option('--comment <text>')
     .action((id: string, opts: { score: number; comment?: string }, cmd: Command) => {
       const g = cmd.optsWithGlobals() as Globals;

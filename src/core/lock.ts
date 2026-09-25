@@ -10,7 +10,8 @@ interface LockRecord {
   started: string;
 }
 
-function pidAlive(pid: number): boolean {
+/** Жив ли процесс: EPERM означает, что процесс есть, но принадлежит другому пользователю. */
+export function pidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;

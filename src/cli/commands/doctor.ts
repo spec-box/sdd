@@ -9,8 +9,6 @@ import type { Config } from '../../core/config.js';
 import type { Diagnostic } from '../../core/diagnostics.js';
 import { projectContext } from '../context.js';
 import { emit, emitError, formatDiagnostics } from '../output.js';
-import { listCandidates } from '../../browser/executable.js';
-import { loadBrowserSettings } from '../../browser/settings.js';
 
 export function registerDoctor(program: Command): void {
   program
@@ -58,8 +56,10 @@ function runnerReadiness(config: Config): Diagnostic[] {
 /** Браузер для проверки интерфейса: найден ли исполняемый файл и откуда. Только info или warning. */
 async function browserReadiness(root: string): Promise<Diagnostic> {
   try {
+    // Ленивый импорт: загрузчик браузеров нужен только doctor, а не каждой команде sbox.
+    const [{ listCandidates }, { loadBrowserSettings }] = await Promise.all([import('../../browser/executable.js'), import('../../browser/settings.js')]);
     const settings = loadBrowserSettings({ cwd: root });
-    const found = (await listCandidates({ explicit: settings.executable, cacheDir: settings.cacheDir }))[0];
+    const found = (await listCandidates({ explicit: settings.executable, cacheDir: settings.cacheDir, headed: !settings.headless }))[0];
     if (found) return { severity: 'info', code: 'BROWSER', message: `Браузер для sbox-browser: ${found.path} (${found.source})${settings.profile ? `, профиль ${settings.profile}` : ''}` };
     return { severity: 'warning', code: 'BROWSER', message: 'Браузер для sbox-browser не найден: верификатор не сможет проверить интерфейс', fix: 'Выполните `sbox-browser install` или укажите browser.executable в .sbox/config.yaml.' };
   } catch (e) {

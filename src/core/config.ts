@@ -118,7 +118,8 @@ export const configSchema = z.object({
       cacheDir: z.string().optional(),
       viewport: z.object({ width: z.number().int().positive().default(1280), height: z.number().int().positive().default(800) }).prefault({}),
       timeoutMs: z.number().int().positive().default(15000),
-      idleMinutes: z.number().int().nonnegative().default(30),
+      /** Минуты простоя до самозавершения демона; 0 — никогда. Больше 35791 минут таймер Node не умеет. */
+      idleMinutes: z.number().int().min(0).max(35791).default(30),
     })
     .prefault({}),
   context: z.string().optional(),

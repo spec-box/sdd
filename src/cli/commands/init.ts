@@ -125,13 +125,15 @@ export function registerInit(program: Command): void {
         }
 
         let hostFiles: string[] = [];
+        let hostNext: string | null = null;
         if (opts.host) {
           const result = installHostMaterials(root, opts.host, exists(configFile) ? loadConfig(root) : undefined);
           hostFiles = result.files.map((f) => path.relative(root, f));
           notes.push(...result.notes);
+          hostNext = result.next;
         }
 
-        emit(g, { root, adapter, created: created.map((f) => path.relative(root, f)), host: hostFiles, notes }, (d) =>
+        emit(g, { root, adapter, created: created.map((f) => path.relative(root, f)), host: hostFiles, hostNext, notes }, (d) =>
           [
             `Инициализировано в ${d.root} (адаптер ${d.adapter})`,
             ...d.created.map((f) => `  + ${f}`),
@@ -141,7 +143,7 @@ export function registerInit(program: Command): void {
             'Дальше:',
             '  1. Заполните .sbox/project/*.md (или попросите researcher: `sbox change new` и роль соберёт черновик по коду).',
             '  2. `sbox doctor` — проверка документации и спецификаций.',
-            ...(d.host.length ? ['  3. В Claude Code: `/sbox-run` после `sbox change new <id> --title "..." --request "..."`.'] : ['  3. `sbox host install --target claude` — скиллы и агенты для Claude Code.']),
+            ...(d.hostNext ? [`  3. ${d.hostNext}`] : ['  3. `sbox host install --target claude | codex` — скиллы и агенты для хоста.']),
           ].join('\n'),
         );
       } catch (e) {

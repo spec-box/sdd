@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { expandHome } from '../core/paths.js';
 
 /** Домашний каталог инструмента: сессии, профили входа, кэш браузеров, журналы, снимки. Вне репозитория продукта. */
 export function browserHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -8,9 +9,7 @@ export function browserHome(env: NodeJS.ProcessEnv = process.env): string {
   return custom ? expandHome(custom) : path.join(os.homedir(), '.sbox', 'browser');
 }
 
-export function expandHome(p: string): string {
-  return p.replace(/^~(?=$|\/)/, os.homedir());
-}
+export { expandHome } from '../core/paths.js';
 
 export const browserDirs = {
   cache: (env?: NodeJS.ProcessEnv) => path.join(browserHome(env), 'cache'),

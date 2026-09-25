@@ -1,7 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { Command } from 'commander';
-import { packageRoot } from '../core/paths.js';
+import { packageVersion } from '../core/paths.js';
 import { registerArtifacts } from './commands/artifacts.js';
 import { registerChange } from './commands/change.js';
 import { registerDoctor } from './commands/doctor.js';
@@ -18,20 +16,12 @@ import { registerPrompt } from './commands/prompt.js';
 import { registerMetrics } from './commands/metrics.js';
 import { registerWiring } from './commands/wiring.js';
 
-function readVersion(): string {
-  try {
-    return (JSON.parse(fs.readFileSync(path.join(packageRoot(), 'package.json'), 'utf8')) as { version: string }).version;
-  } catch {
-    return '0.0.0';
-  }
-}
-
 export function buildProgram(): Command {
   const program = new Command();
   program
     .name('sbox')
     .description('@spec-box/sdd: автономная реализация продуктовых фич ИИ-агентами')
-    .version(readVersion())
+    .version(packageVersion())
     .option('--json', 'один JSON-документ в stdout', false)
     .option('--cwd <dir>', 'корень проекта или каталог внутри него');
   registerInit(program);

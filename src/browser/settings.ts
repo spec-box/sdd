@@ -1,7 +1,8 @@
 import { loadConfig } from '../core/config.js';
 import { findProjectRoot } from '../core/paths.js';
 import { SboxError } from '../core/errors.js';
-import { browserDirs, expandHome } from './paths.js';
+import { browserDirs } from './paths.js';
+import { expandHome } from '../core/paths.js';
 import type { ExecutableSource } from './executable.js';
 
 /** Итоговые настройки браузера: флаги команды → переменные окружения → browser в .sbox/config.yaml → значения по умолчанию. */
@@ -40,9 +41,11 @@ export function loadBrowserSettings(flags: SettingsFlags = {}, env: NodeJS.Proce
   const projectRoot = findProjectRoot(flags.cwd);
   let cfg: ReturnType<typeof loadConfig>['browser'] | null = null;
   if (projectRoot) {
+    // Невалидный конфиг это ошибка, а не пустая секция browser: иначе профиль и базовый URL молча пропадут.
     try {
       cfg = loadConfig(projectRoot).browser;
-    } catch {
+    } catch (e) {
+      if (e instanceof SboxError && e.code !== 'NO_CONFIG') throw e;
       cfg = null;
     }
   }

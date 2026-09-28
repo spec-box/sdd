@@ -73,7 +73,45 @@ sbox change rate <id> --score 4               # оценка результат�
 sbox prompt show project-docs                 # промпт для заполнения .sbox/project/*.md под адаптер проекта
 ```
 
-Модели и усилие по ролям задаются в `runner.models` и `runner.efforts` (по умолчанию opus только для planner и challenger, effort medium); после правки выполните `sbox host install --target claude`. Среды: `claude` через Claude Agent SDK (нужен `ANTHROPIC_API_KEY` для CI; локально годится вход Claude Code), `codex` через `codex exec` (в конфиге `runner.codex.executable`, например бинарник из ChatGPT.app). Репозиторий: `repo.adapter: github` с токеном в `GITHUB_TOKEN`; `local` только коммитит.
+Модель и effort задаются по профилям отдельно в `runner.claude.profiles` и `runner.codex.profiles`; после правки выполните `sbox host install --target claude`. Среды: `claude` через Claude Agent SDK (нужен `ANTHROPIC_API_KEY` для CI; локально годится вход Claude Code), `codex` через `codex exec` (в конфиге `runner.codex.executable`, например бинарник из ChatGPT.app). Репозиторий: `repo.adapter: github` с токеном в `GITHUB_TOKEN`; `local` только коммитит.
+
+## Профили моделей
+
+Одна политика выбора для headless и материалов Claude Code: роль и оценка сложности определяют профиль `simple`, `medium` или `complex`, затем выбранный раннер подставляет пару `model` + `effort`.
+
+```yaml
+runner:
+  default: codex
+  roleProfiles:             # необязательная фиксация профиля роли
+    planner: complex
+    challenger: complex
+    reviewer: complex
+  claude:
+    profiles:
+      simple:  { model: claude-sonnet-5, effort: low }
+      medium:  { model: claude-sonnet-5, effort: medium }
+      complex: { model: claude-opus-5, effort: high }
+  codex:
+    profiles:
+      simple:  { model: gpt-5.6-terra, effort: low }
+      medium:  { model: gpt-5.6-terra, effort: medium }
+      complex: { model: gpt-5.6-sol, effort: high }
+```
+
+Пример показывает встроенные значения. Профили можно задавать частично: остальные поля получают дефолты. Доступность конкретной модели и поддержка effort зависят от установленного раннера и учётной записи.
+
+По умолчанию planner/challenger/reviewer используют complex, distiller — simple, остальные — medium. Оценка планировщика `complexity.implementation` переключает tester/implementer: простая → simple, обычная → medium, высокая → complex. Оценка complexity.review сохраняется для аудита, но не ослабляет независимое ревью: reviewer остаётся complex. При возвратах оценка может повышаться. Явный `roleProfiles.<роль>` фиксирует профиль и имеет приоритет над автоматическим выбором. Размер small/normal/large определяет артефакты и не меняет профиль сам по себе.
+
+```bash
+sbox models --json                           # обе среды, профили по ролям
+sbox models --change add-search --json       # с учётом сложности изменения
+sbox next --change add-search --runner claude --brief --json
+sbox host install --target claude            # обновить определения агентов
+```
+
+`next` возвращает `execution` с раннером, профилем, моделью, effort и именем агента Claude. `/sbox-run` использует это имя; устанавливаются варианты `sbox-<роль>-simple|medium|complex` и базовый `sbox-<роль>`. При изменении профиля/модели/effort предыдущая сессия не продолжается. Для Codex `execution.agent` равен null: headless поддержан, нативная интерактивная оркестрация ещё в плане.
+
+**Миграция:** общие `runner.models`, `runner.efforts`, `runner.defaultEffort` удалены и вызывают понятную ошибку конфигурации. Перенесите настройки в профили нужного раннера, при необходимости задайте roleProfiles, удалите старые поля и переустановите материалы хоста. Автоматический перенос не выполняется: старая таблица не указывает, какому раннеру принадлежит модель.
 
 ## Браузер для проверки интерфейса
 
@@ -138,6 +176,8 @@ sbox-wiki validate --json
 `get --json` возвращает полное содержимое с фронтматтером и `revision` для последующей записи. `put` отклоняет устаревшую ревизию и ошибки целостности wiki, в том числе удаление раздела, на который ссылается другая страница. `--file -` читает stdin. Для согласованной правки нескольких связанных страниц можно использовать редактор и затем `validate`.
 
 Валидация проверяет типы метаданных, уникальность id, локальные ссылки и якоря заголовков; ссылки из блоков кода не учитываются. Внешние URL не проверяются, ссылки за пределы wiki запрещены; HTML-ссылки и пользовательские HTML-якоря не поддерживаются. Код выхода 1 означает ошибку; отсутствие summary/read_when — предупреждение. Скилл `sbox-wiki` устанавливается для Claude и Codex через `sbox host install`; `sbox doctor` использует ту же проверку wiki.
+
+Аудит плана обязателен: `plan → [гейт plan] → challenge → cover`. Challenger проверяет артефакты против запроса и кода, ищет пропущенные сценарии и возвращает блокирующие замечания планировщику. После исправления повторяются гейт и аудит; отчёты сохраняются в `evidence/challenge-N.md`. Человеческие гейты зависят от автономности, аудит — нет. Изменения, уже прошедшие планирование до обновления, продолжаются с текущей фазы; при возврате в plan проходят новый аудит.
 
 ## Состояние
 

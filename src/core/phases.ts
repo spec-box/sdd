@@ -2,7 +2,8 @@ import { enabledGates, type Config, type Gate } from './config.js';
 import { SboxError } from './errors.js';
 import type { Change, Phase } from './change.js';
 
-export const ROLES = ['researcher', 'planner', 'challenger', 'tester', 'implementer', 'reviewer', 'verifier', 'distiller'] as const;
+export { ROLE_NAMES as ROLES } from './model-policy.js';
+import { ROLE_NAMES as ROLES } from './model-policy.js';
 export type Role = (typeof ROLES)[number];
 
 /** Порядок фаз (docs/design.md, раздел 4). intake выполняет CLI при создании изменения. */
@@ -11,6 +12,7 @@ export const PHASE_ORDER: Phase[] = [
   'research',
   'propose',
   'plan',
+  'challenge',
   'cover',
   'tests_review',
   'implement',
@@ -24,6 +26,7 @@ export const ROLE_BY_PHASE: Partial<Record<Phase, Role>> = {
   research: 'researcher',
   propose: 'planner',
   plan: 'planner',
+  challenge: 'challenger',
   cover: 'tester',
   tests_review: 'reviewer',
   implement: 'implementer',
@@ -116,7 +119,7 @@ export function completePhase(change: Change, config: Config, phase: Phase): voi
   if (gate) {
     const state = change.gates[gate];
     if (gateEnabled(change, config, gate) && state?.state !== 'approved') {
-      change.gates[gate] = { state: 'pending', ...(state?.rejected_times ? { rejected_times: state.rejected_times } : {}) };
+      change.gates[gate] = { state: 'pending', ...(state?.answers ? { answers: state.answers } : {}), ...(state?.rejected_times ? { rejected_times: state.rejected_times } : {}) };
       change.status = 'waiting_approval';
       change.phase = phase;
       return;
@@ -143,7 +146,7 @@ export function approveGate(change: Change, gate: Gate, by: string, comment?: st
   if (!state || state.state !== 'pending') {
     throw new SboxError('GATE_NOT_PENDING', `Гейт ${gate} не ожидает решения (состояние: ${state?.state ?? 'нет'}).`);
   }
-  change.gates[gate] = { state: 'approved', by, at: new Date().toISOString(), ...(comment ? { comment } : {}), ...(answers ? { answers } : {}), ...(state.rejected_times ? { rejected_times: state.rejected_times } : {}) };
+  change.gates[gate] = { state: 'approved', by, at: new Date().toISOString(), ...(comment ? { comment } : {}), ...((answers ?? state.answers) ? { answers: answers ?? state.answers } : {}), ...(state.rejected_times ? { rejected_times: state.rejected_times } : {}) };
   change.status = 'active';
   advance(change, PHASE_OF_GATE[gate]);
 }
@@ -176,6 +179,13 @@ export function routeBlocker(
   if (!target) {
     change.status = 'blocked';
     return null;
+  }
+  // Изменённый план и зависящие от него тесты требуют нового утверждения.
+  if (target === 'plan') {
+    for (const gate of ['plan', 'tests'] as const) {
+      const previous = change.gates[gate];
+      if (previous) change.gates[gate] = { ...previous, state: 'skipped', reason: 'plan_changed', comment: input.message };
+    }
   }
   const limit = change.returns_limit ?? config.limits.returnsPerPhase;
   const count = (change.returns[target] ?? 0) + 1;

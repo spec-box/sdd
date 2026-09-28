@@ -1,3 +1,4 @@
+import { higherComplexity } from './model-policy.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,8 @@ import type { SpecAdapter } from '../contract/adapter.js';
 export interface RunReceiptInput {
   runner?: string;
   model?: string;
+  profile?: import('./model-policy.js').ModelProfile;
+  effort?: string;
   session?: string;
   attempt?: number;
   started?: string;
@@ -77,13 +80,22 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
   fs.mkdirSync(rdir, { recursive: true });
   const resultFile = path.join(rdir, 'result.md');
   writeText(resultFile, markdown);
+  // Для интерактивного запуска сохраняем отдельно запрошенные настройки из пакета.
+  let requestedExecution: unknown = null;
+  const packetPath = path.join(rdir, 'packet.json');
+  if (exists(packetPath)) {
+    try { requestedExecution = JSON.parse(readText(packetPath)).execution ?? null; } catch { /* старый или повреждённый пакет не доказывает настройки запуска */ }
+  }
   const receiptBase = {
     id: runId,
     role,
     phase,
     attempt: input.receipt?.attempt ?? 1,
+    requested_execution: requestedExecution,
     runner: input.receipt?.runner ?? null,
     model: input.receipt?.model ?? null,
+    profile: input.receipt?.profile ?? null,
+    effort: input.receipt?.effort ?? null,
     session: input.receipt?.session ?? null,
     // В интерактивном режиме старт запуска это момент выдачи пакета: packet.json не архивируется и не коммитится, поэтому время фиксируется здесь.
     started: input.receipt?.started ?? (exists(path.join(rdir, 'packet.json')) ? fs.statSync(path.join(rdir, 'packet.json')).mtime.toISOString() : null),
@@ -109,6 +121,8 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
       finished: receiptBase.finished,
       ...(receiptBase.runner ? { runner: receiptBase.runner } : {}),
       ...(receiptBase.model ? { model: receiptBase.model } : {}),
+      ...(receiptBase.profile ? { profile: receiptBase.profile } : {}),
+      ...(receiptBase.effort ? { effort: receiptBase.effort } : {}),
       ...(receiptBase.session ? { session: receiptBase.session } : {}),
       ...(receiptBase.started ? { started: receiptBase.started } : {}),
       ...(receiptBase.cost_usd !== null ? { cost_usd: receiptBase.cost_usd } : {}),
@@ -148,8 +162,8 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
   if (result.complexity) {
     const prev = change.complexity;
     change.complexity = {
-      implementation: prev?.implementation === 'высокая' ? 'высокая' : result.complexity.implementation,
-      review: prev?.review === 'высокая' ? 'высокая' : result.complexity.review,
+      implementation: higherComplexity(prev?.implementation, result.complexity.implementation),
+      review: higherComplexity(prev?.review, result.complexity.review),
     };
   }
   if (role === 'tester' && result.protected && result.protected.length > 0) {
@@ -197,10 +211,10 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
         role,
         phase,
       });
-    } else if (role === 'reviewer' && (result.findings ?? []).some((f) => f.level === 'blocking')) {
+    } else if ((role === 'reviewer' || role === 'challenger') && (result.findings ?? []).some((f) => f.level === 'blocking')) {
       runStatus = 'blocked';
       routeBlocker(change, config, {
-        category: phase === 'tests_review' ? 'тесты' : 'реализация',
+        category: role === 'challenger' ? 'артефакт' : phase === 'tests_review' ? 'тесты' : 'реализация',
         message: (result.findings ?? []).filter((f) => f.level === 'blocking').map((f) => `${f.file ? `${f.file}: ` : ''}${f.text}`).join(' | '),
         role,
         phase,
@@ -257,7 +271,7 @@ const EVIDENCE_NAMES: Partial<Record<`${Role}:${Phase}`, (n: number) => string>>
   'reviewer:tests_review': (n) => `tests-review-${n}.md`,
   'reviewer:review': (n) => `review-${n}.md`,
   'verifier:verify': (n) => `verify-${n}.md`,
-  'challenger:plan': () => 'challenge.md',
+  'challenger:challenge': (n) => `challenge-${n}.md`,
 };
 
 /** Имя файла evidence для запуска роли: порядковый номер считается по запускам той же роли и фазы до этого запуска (runId null: до текущего момента). */
@@ -284,6 +298,9 @@ async function checkPhaseDone(input: ReportInput & { result: RoleResult; changeD
   const workflow = loadWorkflow(root);
   const states = artifactStates(workflow, change, dir);
 
+  if (role === 'challenger' && result.findings === undefined) {
+    out.push(diag('error', 'CHALLENGE_FINDINGS_MISSING', 'Аудит требует findings: список замечаний или [] при их отсутствии', 'findings'));
+  }
   if (role === 'researcher' && phase === 'research') out.push(...checkRequestMap(root, dir, change, result));
   if (role === 'planner' && phase === 'propose') {
     const open = change.conflicts.filter((c) => c.role === 'researcher');

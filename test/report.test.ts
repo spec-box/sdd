@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import '../src/adapters/spec/index.js';
 import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
-import { approveGate, nextStep } from '../src/core/phases.js';
+import { approveGate, completePhase, nextStep } from '../src/core/phases.js';
 import { applyReport, appliedOutcome, normalizeQuote, resolveReportFile } from '../src/core/report.js';
 import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESEARCH, RESULT, tempProject, write } from './helpers.js';
@@ -151,5 +151,33 @@ describe('вопросы планировщика', () => {
     approveGate(change, 'plan', 'dima', undefined, { Q1: 'B' });
     saveChange(dir, change);
     expect(loadChange(dir).gates.plan?.answers).toEqual({ Q1: 'B' });
+  });
+});
+
+
+describe('обязательный аудит плана', () => {
+  it.each(['supervised', 'checkpoint', 'autonomous'] as const)('не пропускается при %s и любом размере', (autonomy) => {
+    const { dir, config } = setup('audit');
+    for (const size of ['small', 'normal', 'large'] as const) {
+      const change = loadChange(dir);
+      change.phase = 'plan'; change.autonomy = autonomy; change.size = size;
+      completePhase(change, config, 'plan');
+      if (change.status === 'waiting_approval') approveGate(change, 'plan', 'test');
+      expect(nextStep(change, config)).toEqual({ kind: 'role', role: 'challenger', phase: 'challenge' });
+    }
+  });
+  it('отклоняет аудит без findings и сохраняет фазу для повторной попытки', async () => {
+    const { dir, report } = setup('missing-audit');
+    const change = loadChange(dir); change.phase = 'challenge'; saveChange(dir, change);
+    const out = await report('challenger', 'challenge', RESULT('готово'));
+    expect(out.accepted).toBe(false);
+    expect(out.diagnostics.map(d => d.code)).toContain('CHALLENGE_FINDINGS_MISSING');
+    expect(loadChange(dir).phase).toBe('challenge');
+    expect((await report('challenger', 'challenge', RESULT('готово', 'findings: []\n'))).next).toMatchObject({ phase: 'cover' });
+  });
+  it('сохраняет текущую фазу изменений, уже прошедших планирование до обновления', () => {
+    const { dir, config } = setup('legacy-audit');
+    const change = loadChange(dir); change.phase = 'cover'; saveChange(dir, change);
+    expect(nextStep(loadChange(dir), config)).toMatchObject({ role: 'tester', phase: 'cover' });
   });
 });

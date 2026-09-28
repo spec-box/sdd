@@ -70,30 +70,3 @@ export function transportRetryAllowed(failure: RunFailure | undefined): boolean 
 
 /** Ролям без права записи среда даёт только чтение и запуск проверок. */
 export const READ_ONLY_ROLES: ReadonlySet<Role> = new Set<Role>(['researcher', 'challenger', 'reviewer', 'verifier']);
-
-/** Модель по роли и сложности: явная из конфига, иначе умолчание адаптера. */
-export function chooseModel(config: Config, runnerName: string, role: Role, complexity: { implementation: string; review: string } | undefined): { model: string; pro: boolean } {
-  const pro =
-    (role === 'implementer' && complexity?.implementation === 'высокая') ||
-    (role === 'reviewer' && complexity?.review === 'высокая') ||
-    (role === 'tester' && complexity?.implementation === 'высокая') ||
-    STRONG_MODEL_ROLES.has(role);
-  const models = config.runner.models;
-  const explicit = pro ? (models[`${role}-pro`] ?? models[role]) : models[role];
-  if (explicit) return { model: explicit, pro };
-  const defaults = RUNNER_DEFAULT_MODELS[runnerName] ?? RUNNER_DEFAULT_MODELS.claude!;
-  return { model: pro ? defaults.pro : defaults.normal, pro };
-}
-
-export const RUNNER_DEFAULT_MODELS: Record<string, { normal: string; pro: string }> = {
-  claude: { normal: 'claude-sonnet-5', pro: 'claude-opus-5' },
-  codex: { normal: 'gpt-5.6-terra', pro: 'gpt-5.6-sol' },
-};
-
-/** Роли, которым по умолчанию нужна сильная модель; остальные работают на обычной, пока сложность не высокая. */
-export const STRONG_MODEL_ROLES: ReadonlySet<Role> = new Set<Role>(['planner', 'challenger']);
-
-/** Модель роли по умолчанию для материалов хоста: псевдоним Claude Code. */
-export function defaultHostModel(role: Role): 'opus' | 'sonnet' {
-  return STRONG_MODEL_ROLES.has(role) ? 'opus' : 'sonnet';
-}

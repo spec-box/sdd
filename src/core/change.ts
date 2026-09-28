@@ -1,3 +1,4 @@
+import { complexitySchema, profileSchema } from './model-policy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -13,6 +14,7 @@ export const PHASES = [
   'research',
   'propose',
   'plan',
+  'challenge',
   'cover',
   'tests_review',
   'implement',
@@ -63,6 +65,8 @@ const runSchema = z.object({
   attempt: z.number().int().positive().default(1),
   runner: z.string().optional(),
   model: z.string().optional(),
+  profile: profileSchema.optional(),
+  effort: z.string().optional(),
   session: z.string().optional(),
   started: z.string().optional(),
   finished: z.string().optional(),
@@ -106,9 +110,7 @@ export const changeSchema = z.object({
   stop_requested: z.boolean().default(false),
   base_revision: z.string().nullable().default(null),
   gates: z.record(z.string(), gateStateSchema).default({}),
-  complexity: z
-    .object({ implementation: z.enum(['обычная', 'высокая']), review: z.enum(['обычная', 'высокая']) })
-    .optional(),
+  complexity: complexitySchema.optional(),
   assumptions: z.array(z.object({ question: z.string(), priority: z.string(), accepted: z.string() })).default([]),
   protected: z.array(z.string()).default([]),
   /** Хеши защищённых файлов на момент завершения фазы cover: путь → sha256. */

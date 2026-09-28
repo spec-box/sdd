@@ -5,7 +5,7 @@ import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { computeChangeSet, changeSetDrift, sealChangeSet } from '../src/core/changeset.js';
 import { loadConfig } from '../src/core/config.js';
 import { acquireLock } from '../src/core/lock.js';
-import { resumeChange, routeBlocker } from '../src/core/phases.js';
+import { approveGate, completePhase, nextStep, resumeChange, routeBlocker } from '../src/core/phases.js';
 import { applyReport } from '../src/core/report.js';
 import { createSpecAdapter } from '../src/contract/adapter.js';
 import { BLOCKED, RESULT, git, tempProject, write } from './helpers.js';
@@ -169,5 +169,29 @@ describe('контракт верификатора и ревьюера', () => 
     expect(out.phaseCompleted).toBe(false);
     expect(loadChange(dir).phase).toBe('implement');
     void BLOCKED;
+  });
+});
+
+
+describe('повторное утверждение изменённого плана', () => {
+  it('сбрасывает зависимые гейты, сохраняет ответы и не пропускает ревью тестов', () => {
+    const root = tempProject();
+    const config = loadConfig(root); config.testing.reviewReworks = false;
+    const { change } = createChange(root, config, { id: 'audit-return', title: 't', request: 'r' });
+    change.phase = 'review';
+    change.gates.plan = { state: 'approved', answers: { Q1: 'B' } };
+    change.gates.tests = { state: 'approved' };
+    routeBlocker(change, config, { category: 'артефакт', message: 'Новый сценарий', role: 'reviewer', phase: 'review' });
+    expect(change.gates.tests).toMatchObject({ state: 'skipped', reason: 'plan_changed' });
+    completePhase(change, config, 'plan');
+    expect(nextStep(change, config)).toMatchObject({ kind: 'gate', gate: 'plan' });
+    approveGate(change, 'plan', 'test');
+    expect(change.gates.plan?.answers).toEqual({ Q1: 'B' });
+    expect(nextStep(change, config)).toMatchObject({ role: 'challenger' });
+    completePhase(change, config, 'challenge');
+    completePhase(change, config, 'cover');
+    expect(nextStep(change, config)).toMatchObject({ role: 'reviewer', phase: 'tests_review' });
+    completePhase(change, config, 'tests_review');
+    expect(nextStep(change, config)).toMatchObject({ kind: 'gate', gate: 'tests' });
   });
 });

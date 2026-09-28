@@ -1,5 +1,5 @@
 ---
-name: sbox-{{role}}
+name: {{name}}
 description: {{description}}
 tools: {{tools}}
 model: {{model}}

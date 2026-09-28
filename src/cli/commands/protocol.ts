@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Command } from 'commander';
+import { Option, type Command } from 'commander';
 import { saveChange, type Change, type Conflict } from '../../core/change.js';
 import { GATES, type Gate } from '../../core/config.js';
 import { SboxError } from '../../core/errors.js';
@@ -19,8 +19,9 @@ export function registerProtocol(program: Command): void {
     .command('next')
     .description('Следующий шаг изменения: пакет для роли, гейт, доставка или ожидание')
     .option('--change <id>', 'идентификатор изменения')
+    .addOption(new Option('--runner <name>', 'среда, для которой подобрать модель').choices(['claude', 'codex']))
     .option('--brief', 'не печатать пакет целиком: только роль, фаза, путь к пакету и команда отчёта')
-    .action(async (opts: { change?: string; brief?: boolean }, cmd: Command) => {
+    .action(async (opts: { change?: string; brief?: boolean; runner?: 'claude' | 'codex' }, cmd: Command) => {
       const g = cmd.optsWithGlobals() as Globals;
       try {
         const ctx = changeContext(g.cwd, opts.change);
@@ -31,12 +32,12 @@ export function registerProtocol(program: Command): void {
             saveChange(ctx.dir, ctx.change);
           }
           const truthSources = (await ctx.adapter.readTruth()).map((c) => c.source ?? c.id);
-          const packet = buildPacket({ ...ctx, role: step.role, phase: step.phase, truthSources });
+          const packet = buildPacket({ ...ctx, role: step.role, phase: step.phase, truthSources, runner: opts.runner });
           const packetFile = path.join(ctx.dir, 'runs', packet.runId, 'packet.json');
           writeText(packetFile, JSON.stringify(packet, null, 2));
           const rel = toPosix(path.relative(ctx.root, packetFile));
           // Отчёт сдаёт оркестратор или раннер, не роль: команда не входит в пакет и не требует --file (docs/design.md, раздел 12).
-          const brief = { kind: 'role' as const, role: step.role, phase: step.phase, runId: packet.runId, packetFile: rel, resultFile: packet.resultFile, objective: packet.objective, feedback: packet.feedback, report: `sbox report --change ${ctx.change.id} --role ${step.role} --json` };
+          const brief = { kind: 'role' as const, execution: packet.execution, role: step.role, phase: step.phase, runId: packet.runId, packetFile: rel, resultFile: packet.resultFile, objective: packet.objective, feedback: packet.feedback, report: `sbox report --change ${ctx.change.id} --role ${step.role} --json` };
           if (opts.brief) {
             emit(g, brief, (d) => [`Шаг: роль ${d.role}, фаза ${d.phase}`, `Пакет: ${d.packetFile}`, `Цель: ${d.objective}`, ...(d.feedback ? [`Фидбэк: ${d.feedback.slice(0, 300)}`] : []), `Отчёт: ${d.report}`].join('\n'));
             return;

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import '../src/adapters/spec/index.js';
-import { createChange, loadChange } from '../src/core/change.js';
+import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { requestStop, runChange } from '../src/core/run.js';
 import { createSpecAdapter } from '../src/contract/adapter.js';
@@ -61,6 +61,34 @@ describe('headless-цикл', () => {
     expect(receipt.runner).toBe('fake');
     expect(receipt.packet_sha256).toHaveLength(64);
     expect(fs.existsSync(path.join(dir, '.lock'))).toBe(false);
+  });
+
+  it.each(['same', 'model', 'effort', 'profile', 'runner', 'latest'] as const)('передаёт выбранный профиль и продолжает сессию только при совпадении настроек: %s', async difference => {
+    const root = tempProject();
+    const config = loadConfig(root);
+    config.runner.default = 'codex';
+    config.runner.codex.profiles.medium = { model: 'codex-project-model', effort: 'medium' };
+    const adapter = createSpecAdapter(root, config);
+    const { dir } = createChange(root, config, { id: 'policy', title: 't', request: 'r' });
+    const change = loadChange(dir);
+    change.runs.push({ id: 'r1', role: 'researcher', phase: 'research', status: 'done', dir: 'runs/r1',
+      runner: difference === 'runner' ? 'other' : 'fake', session: 'previous',
+      model: difference === 'model' ? 'old-model' : 'codex-project-model',
+      effort: difference === 'effort' ? 'high' : 'medium', profile: difference === 'profile' ? 'simple' : 'medium' });
+    if (difference === 'latest') change.runs.push({ ...change.runs[0]!, id: 'r2', model: 'different-model', session: 'latest' });
+    const nextId = `r${change.runs.length + 1}`;
+    saveChange(dir, change);
+    const runner = fakeRunner([req => {
+      expect(req.model).toBe('codex-project-model');
+      expect(req.effort).toBe('medium');
+      expect(req.packet.execution).toMatchObject({ runner: 'codex', model: req.model, effort: req.effort, profile: 'medium' });
+      expect(req.resumeSession).toBe(difference === 'same' ? 'previous' : undefined);
+      write(root, `${path.relative(root, dir)}/evidence/research.md`, '# Evidence');
+      return { markdown: RESEARCH('r') };
+    }]);
+    await runChange({ root, config, dir, adapter, runner, maxRuns: 1 });
+    const receipt = JSON.parse(read(root, `${path.relative(root, dir)}/runs/${nextId}/receipt.json`));
+    expect(receipt).toMatchObject({ profile: 'medium', model: 'codex-project-model', effort: 'medium' });
   });
 
   it('повторяет один раз при транспортном сбое, а при втором блокирует', async () => {

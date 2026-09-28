@@ -69,7 +69,25 @@ describe('полный цикл изменения (supervised, без аген�
     change = loadChange(dir);
     approveGate(change, 'plan', 'dima', undefined, { Q1: 'B' });
     saveChange(dir, change);
-    expect(change.phase).toBe('cover');
+    expect(change.phase).toBe('challenge');
+    const auditPacket = buildPacket({ root, config, change, dir, role: 'challenger', phase: 'challenge', adapter, truthSources: [] });
+    expect(auditPacket.ownership).toEqual({ write: [], readOnly: true });
+    expect(auditPacket.feedback).toContain('Q1=B');
+    // Даже ошибочный «готово» не пропускает блокирующую находку.
+    out = await report(root, dir, 'challenger', 'challenge', RESULT('готово', 'findings:\n  - { level: blocking, text: "Не определено поведение пустого запроса" }\n'));
+    expect(out.next).toMatchObject({ role: 'planner', phase: 'plan' });
+    expect(loadChange(dir).gates.plan?.state).toBe('skipped');
+    expect(loadChange(dir).returns.plan).toBe(1);
+    expect(read(root, `${rel(dir)}/evidence/challenge-1.md`)).toContain('пустого запроса');
+    write(root, `${rel(dir)}/design.md`, '## Общая картина\nПустой запрос возвращает весь каталог.');
+    out = await report(root, dir, 'planner', 'plan', RESULT('готово'));
+    expect(out.next).toMatchObject({ kind: 'gate', gate: 'plan' });
+    change = loadChange(dir);
+    approveGate(change, 'plan', 'dima');
+    saveChange(dir, change);
+    out = await report(root, dir, 'challenger', 'challenge', RESULT('готово', 'findings: []\n'));
+    expect(read(root, `${rel(dir)}/evidence/challenge-2.md`)).toContain('findings: []');
+    expect(out.next).toMatchObject({ kind: 'role', role: 'tester', phase: 'cover' });
 
     // cover: coverage.yaml + защита тестов
     write(root, `${rel(dir)}/coverage.yaml`, 'home-page: {}\n');

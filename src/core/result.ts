@@ -1,3 +1,4 @@
+import { complexitySchema } from './model-policy.js';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { SboxError } from './errors.js';
@@ -20,9 +21,7 @@ export const roleResultSchema = z.object({
       message: z.string().optional(),
     })
     .optional(),
-  complexity: z
-    .object({ implementation: z.enum(['обычная', 'высокая']), review: z.enum(['обычная', 'высокая']) })
-    .optional(),
+  complexity: complexitySchema.optional(),
   size: z.enum(['small', 'normal', 'large']).optional(),
   skip_specs: z.boolean().optional(),
   questions: z

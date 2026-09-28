@@ -36,7 +36,7 @@ describe('host: скиллы из единого источника', () => {
     for (const role of ['planner', 'implementer', 'reviewer', 'challenger']) {
       const agent = fs.readFileSync(path.join(root, `.claude/agents/sbox-${role}.md`), 'utf8');
       expect(agent).toContain('skills:\n  - sbox-contract\n  - sbox-wiki');
-      expect(agent).toMatch(/\neffort: medium\nskills:/);
+      expect(agent).toContain(`\neffort: ${role === 'implementer' ? 'medium' : 'high'}\nskills:`);
     }
     expect(result.notes).toEqual([]);
     expect(result.next).toMatch(/Claude Code/);

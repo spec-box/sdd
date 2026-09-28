@@ -7,7 +7,7 @@ import { acquireLock } from './lock.js';
 import { buildPacket, renderPrompt } from './packet.js';
 import { nextStep, type NextStep, type Role } from './phases.js';
 import { applyReport, changesetExclude } from './report.js';
-import { chooseModel, READ_ONLY_ROLES, transportRetryAllowed, type AgentRunner, type RunResponse } from './runner.js';
+import { READ_ONLY_ROLES, transportRetryAllowed, type AgentRunner, type RunResponse } from './runner.js';
 import { formatDiagnostics } from '../cli/output.js';
 import { expandHome, toPosix, writeText } from './paths.js';
 import type { Config } from './config.js';
@@ -106,20 +106,21 @@ export async function runChange(opts: RunOptions): Promise<RunSummary> {
 
       const role: Role = step.role;
       const truthSources = (await adapter.readTruth()).map((c) => c.source ?? c.id);
-      const packet = buildPacket({ root, config, change, dir, role, phase: step.phase, adapter, truthSources });
+      const packet = buildPacket({ root, config, change, dir, role, phase: step.phase, adapter, truthSources, runner: runner.name === 'codex' ? 'codex' : runner.name === 'claude' ? 'claude' : config.runner.default });
       const rdir = runDir(dir, packet.runId);
       fs.mkdirSync(rdir, { recursive: true });
       const packetJson = JSON.stringify(packet, null, 2);
       writeText(path.join(rdir, 'packet.json'), packetJson);
       const prompt = renderPrompt(packet);
-      const { model } = chooseModel(config, runner.name, role, change.complexity);
+      const { model, effort, profile } = packet.execution;
       const previous = [...change.runs].reverse().find((r) => r.role === role && r.session);
-      const resumeSession = runner.supportsResume && previous?.session ? previous.session : undefined;
+      const resumeSession = runner.supportsResume && previous?.runner === runner.name
+        && previous.model === model && previous.effort === effort && previous.profile === profile ? previous.session : undefined;
 
       change.active_run = packet.runId;
       change.settled = false;
       saveChange(dir, change);
-      log(`▶ ${packet.runId} ${role}/${step.phase} модель ${model}${resumeSession ? ' (продолжение сессии)' : ''}`);
+      log(`▶ ${packet.runId} ${role}/${step.phase} профиль ${profile}, модель ${model}, effort ${effort}${resumeSession ? ' (продолжение сессии)' : ''}`);
 
       const exclude = changesetExclude(config, changeDirRel);
       const before = workspaceFingerprint(root, change, exclude);
@@ -138,7 +139,7 @@ export async function runChange(opts: RunOptions): Promise<RunSummary> {
             prompt,
             cwd: root,
             model,
-            effort: config.runner.efforts[role] ?? config.runner.defaultEffort,
+            effort,
             readOnly: READ_ONLY_ROLES.has(role),
             resumeSession,
             resultFile: path.join(rdir, 'result.md'),
@@ -169,6 +170,8 @@ export async function runChange(opts: RunOptions): Promise<RunSummary> {
       const receipt = {
         runner: runner.name,
         model,
+        effort,
+        profile,
         session: response?.session,
         attempt,
         started: response?.started,
@@ -187,14 +190,14 @@ export async function runChange(opts: RunOptions): Promise<RunSummary> {
         if (failure === 'stopped') {
           change.status = 'stopped';
           change.stop_requested = true;
-          change.runs.push({ id: packet.runId, role, phase: step.phase, attempt, status: 'stopped', dir: `runs/${packet.runId}`, runner: runner.name, model, failure });
+          change.runs.push({ id: packet.runId, role, phase: step.phase, attempt, status: 'stopped', dir: `runs/${packet.runId}`, runner: runner.name, model, effort, profile, failure });
           saveChange(dir, change, { allowTerminalReopen: true });
           clearStop(dir);
           return { reason: 'stopped', runs, costUsd, next: nextStep(change, config), change };
         }
         change.status = 'blocked';
         change.blocker = { category: 'внешний', message: `Среда ${runner.name} не вернула пригодный ответ (${failure}): ${response?.failureMessage ?? ''}`.trim(), role, phase: step.phase };
-        change.runs.push({ id: packet.runId, role, phase: step.phase, attempt, status: 'failed', dir: `runs/${packet.runId}`, runner: runner.name, model, failure });
+        change.runs.push({ id: packet.runId, role, phase: step.phase, attempt, status: 'failed', dir: `runs/${packet.runId}`, runner: runner.name, model, effort, profile, failure });
         writeText(path.join(rdir, 'receipt.json'), `${JSON.stringify({ id: packet.runId, role, phase: step.phase, status: 'failed', ...receipt }, null, 2)}\n`);
         saveChange(dir, change);
         log(`✖ ${packet.runId} сбой среды: ${failure}`);

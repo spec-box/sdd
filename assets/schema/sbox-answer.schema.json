@@ -24,8 +24,8 @@
         "complexity": {
           "type": "object",
           "properties": {
-            "implementation": { "type": "string", "enum": ["обычная", "высокая"] },
-            "review": { "type": "string", "enum": ["обычная", "высокая"] }
+            "implementation": { "type": "string", "enum": ["простая", "обычная", "высокая"] },
+            "review": { "type": "string", "enum": ["простая", "обычная", "высокая"] }
           }
         },
         "questions": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "priority": { "type": "string", "enum": ["P0", "P1", "P2"] }, "text": { "type": "string" } } } },

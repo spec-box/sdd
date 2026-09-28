@@ -1,3 +1,4 @@
+import { modelProfilesSchema, roleProfilesSchema } from './model-policy.js';
 import { specSchema } from '../contract/config.js';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -10,8 +11,6 @@ export type AutonomyProfile = (typeof AUTONOMY_PROFILES)[number];
 
 export const GATES = ['proposal', 'plan', 'tests'] as const;
 export type Gate = (typeof GATES)[number];
-
-const modelsSchema = z.record(z.string(), z.string());
 
 export const configSchema = z.object({
   version: z.literal(1),
@@ -27,16 +26,17 @@ export const configSchema = z.object({
   runner: z
     .object({
       default: z.enum(['claude', 'codex']).default('claude'),
-      models: modelsSchema.default({}),
-      /** Усилие модели по ролям (low | medium | high | xhigh); без записи роль получает medium, а не усилие сессии. */
-      efforts: z.record(z.string(), z.string()).default({}),
-      defaultEffort: z.string().default('medium'),
+      roleProfiles: roleProfilesSchema,
+      models: z.never({ error: 'runner.models удалён: используйте runner.claude.profiles / runner.codex.profiles' }).optional(),
+      efforts: z.never({ error: 'runner.efforts удалён: effort задаётся внутри профиля раннера' }).optional(),
+      defaultEffort: z.never({ error: 'runner.defaultEffort удалён: effort задаётся внутри профиля раннера' }).optional(),
       /** Каталог вне репозитория для событий и stderr запусков. */
       stateDir: z.string().default('~/.sbox/runs'),
       timeoutMinutes: z.number().positive().default(120),
       idleTimeoutMinutes: z.number().positive().default(20),
       claude: z
         .object({
+          profiles: modelProfilesSchema('claude'),
           executable: z.string().optional(),
           permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions']).default('acceptEdits'),
           allowedTools: z.array(z.string()).default(['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
@@ -47,11 +47,13 @@ export const configSchema = z.object({
         .prefault({}),
       codex: z
         .object({
+          profiles: modelProfilesSchema('codex'),
           executable: z.string().default('codex'),
           sandboxWrite: z.string().default('workspace-write'),
           sandboxRead: z.string().default('read-only'),
           approvalPolicy: z.string().default('on-request'),
-          extraConfig: z.array(z.string()).default([]),
+          extraConfig: z.array(z.string().refine(value => !/^\s*["']?(?:model|model_reasoning_effort)["']?\s*=/.test(value),
+            { message: 'Модель и effort задаются в runner.codex.profiles, не в extraConfig' })).default([]),
         })
         .prefault({}),
     })

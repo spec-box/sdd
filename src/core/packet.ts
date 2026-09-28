@@ -1,3 +1,4 @@
+import { resolveModel, claudeAgentName } from './model-policy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadRoleText } from './roles.js';
@@ -17,6 +18,7 @@ export interface RolePacket {
   version: 1;
   change: { id: string; title: string; dir: string; phase: Phase; size: string; status: string; base_revision: string | null };
   role: Role;
+  execution: ReturnType<typeof resolveModel> & { agent: string | null };
   phase: Phase;
   runId: string;
   objective: string;
@@ -61,6 +63,7 @@ const OBJECTIVES: Partial<Record<`${Role}:${Phase}`, string>> = {
   'researcher:research': 'Собрать Evidence Pack по запросу: текущее поведение, затронутые capability и код, границы, доказательства, пробелы. Записать в evidence/research.md.',
   'planner:propose': 'Написать proposal.md по запросу и evidence. Оценить размер изменения, сложность реализации и ревью.',
   'planner:plan': 'Написать дельты спецификаций, design.md с общей картиной, контрактами, решениями и приоритизированными вопросами, затем tasks.md.',
+  'challenger:challenge': 'Независимо проверить план, дельты и задачи против запроса, evidence и кода; найти пропущенные сценарии и неподтверждённые допущения. Вернуть findings; артефакты не менять.',
   'tester:cover': 'Написать автотесты по сценариям дельт на уровнях из testing.md, заполнить coverage.yaml и при необходимости test-plan.md, запустить тесты и убедиться, что новые падают по ожидаемой причине.',
   'reviewer:tests_review': 'Проверить тесты против дельт спецификаций и дизайна: полнота покрытия сценариев, соответствие сценарию, отсутствие продуктовой логики в тестах, именование. Вернуть findings.',
   'implementer:implement': 'Выполнить задачи из tasks.md, не изменяя защищённые файлы. Довести тесты из coverage.yaml до зелёных, отметить выполненные задачи.',
@@ -71,7 +74,7 @@ const OBJECTIVES: Partial<Record<`${Role}:${Phase}`, string>> = {
 const WRITE_OWNERSHIP: Record<Role, string[]> = {
   researcher: ['evidence/research.md'],
   planner: ['proposal.md', 'specs/**', 'design.md', 'tasks.md'],
-  challenger: ['evidence/challenge.md'],
+  challenger: [],
   tester: ['coverage.yaml', 'test-plan.md', '<тестовые файлы по testing.md>'],
   implementer: ['<продуктовый код>', 'tasks.md (только отметки [x])'],
   reviewer: [],
@@ -88,10 +91,12 @@ export interface PacketContext {
   phase: Phase;
   adapter: SpecAdapter;
   truthSources: string[];
+  runner?: 'claude' | 'codex';
 }
 
 export function buildPacket(ctx: PacketContext): RolePacket {
   const { root, config, change, dir, role, phase } = ctx;
+  const execution = resolveModel(config, ctx.runner ?? config.runner.default, role, change.complexity);
   const workflow = loadWorkflow(root);
   const states = artifactStates(workflow, change, dir);
   const artifacts: Record<string, string[]> = {};
@@ -143,6 +148,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     version: 1,
     change: { id: change.id, title: change.title, dir: rel(dir), phase, size: change.size, status: change.status, base_revision: change.base_revision },
     role,
+    execution: { ...execution, agent: execution.runner === 'claude' ? claudeAgentName(role, execution.profile) : null },
     phase,
     runId,
     objective: OBJECTIVES[`${role}:${phase}`] ?? `Выполнить роль ${role} в фазе ${phase}.`,
@@ -212,7 +218,7 @@ function feedbackFor(change: Change, phase: Phase): string | null {
   }
   for (const [gate, state] of Object.entries(change.gates)) {
     if (state.state === 'rejected' && state.comment) parts.push(`Гейт ${gate} отклонён: ${state.comment}`);
-    if (state.state === 'approved' && state.answers && Object.keys(state.answers).length > 0) {
+    if ((state.state === 'approved' || state.reason === 'plan_changed') && state.answers && Object.keys(state.answers).length > 0) {
       parts.push(`Ответы на вопросы гейта ${gate}: ${Object.entries(state.answers).map(([q, a]) => `${q}=${a}`).join('; ')}`);
     }
   }

@@ -1,3 +1,4 @@
+import { registerModels } from './commands/models.js';
 import { Command } from 'commander';
 import { packageVersion } from '../core/paths.js';
 import { registerArtifacts } from './commands/artifacts.js';
@@ -39,6 +40,7 @@ export function buildProgram(): Command {
   registerCi(program);
   registerPrompt(program);
   registerMetrics(program);
+  registerModels(program);
   registerWiring(program);
   registerLog(program);
   return program;

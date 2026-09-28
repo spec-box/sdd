@@ -6,7 +6,7 @@ import { registerDoctor } from './commands/doctor.js';
 import { registerHost } from './commands/host.js';
 import { registerInit } from './commands/init.js';
 import { registerProtocol } from './commands/protocol.js';
-import { registerSpec } from './commands/spec.js';
+import { registerArchive } from './commands/archive.js';
 import { registerRun } from './commands/run.js';
 import { registerChangeset } from './commands/changeset.js';
 import { registerDeliver } from './commands/deliver.js';
@@ -31,7 +31,7 @@ export function buildProgram(): Command {
   registerChange(program);
   registerProtocol(program);
   registerArtifacts(program);
-  registerSpec(program);
+  registerArchive(program);
   registerRun(program);
   registerChangeset(program);
   registerDeliver(program);

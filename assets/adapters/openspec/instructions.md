@@ -1,6 +1,6 @@
 ## Формат дельты спецификаций (адаптер OpenSpec)
 
-Истина хранится в `openspec/specs/<capability-path>/spec.md`: заголовок `# <Название> Specification`, раздел `## Purpose`, раздел `## Requirements` с блоками `### Requirement: <название>` (нормативный текст с SHALL или MUST) и сценариями `#### Scenario: <название>` в форме GIVEN / WHEN / THEN. Идентификатор capability это путь относительно `openspec/specs/`, например `auth` или `identity/user-auth` (`sbox spec list --json`).
+Истина хранится в `openspec/specs/<capability-path>/spec.md`: заголовок `# <Название> Specification`, раздел `## Purpose`, раздел `## Requirements` с блоками `### Requirement: <название>` (нормативный текст с SHALL или MUST) и сценариями `#### Scenario: <название>` в форме GIVEN / WHEN / THEN. Идентификатор capability это путь относительно `openspec/specs/`, например `auth` или `identity/user-auth` (`sbox-contract index --json`).
 
 Дельта лежит в `specs/<capability-path>/spec.md` папки изменения, по одному файлу на capability. Она описывает только изменения:
 
@@ -39,7 +39,7 @@
 ```
 
 Правила:
-- `MODIFIED`, `REMOVED`, `RENAMED` применимы только к требованиям, которые есть в истине (`sbox spec show <capability-path> --json`); заголовок должен совпадать буква в букву.
+- `MODIFIED`, `REMOVED`, `RENAMED` применимы только к требованиям, которые есть в истине (`sbox-contract show <capability-path> --json`); заголовок должен совпадать буква в букву.
 - `MODIFIED` заменяет блок требования целиком: скопируйте существующий блок с всеми сценариями и измените нужное. Потерянные сценарии валидатор пометит предупреждением.
 - Если меняется и название, и поведение: пара FROM/TO в `RENAMED` и полный блок в `MODIFIED` под новым названием.
 - Для новой capability допустим только `ADDED` и обязателен `## Purpose`.

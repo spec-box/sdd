@@ -5,7 +5,7 @@ import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { protectedViolations, snapshotProtected } from '../src/core/protect.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESULT, tempProject, write } from './helpers.js';
 import fs from 'node:fs';
 

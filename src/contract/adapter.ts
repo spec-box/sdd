@@ -1,6 +1,6 @@
-import type { Diagnostic } from './diagnostics.js';
-import type { Config } from './config.js';
-import type { Capability, SpecDelta } from './spec-model.js';
+import type { Diagnostic } from '../core/diagnostics.js';
+import type { ContractConfig } from './config.js';
+import type { Capability, SpecDelta } from './model.js';
 
 /** Контракт адаптера спецификаций (docs/design.md, раздел 11). */
 export interface SpecAdapter {
@@ -11,6 +11,8 @@ export interface SpecAdapter {
   readDelta(dir: string): Promise<SpecDelta[]>;
   /** Проверить дельты относительно истины. */
   validate(truth: Capability[], deltas: SpecDelta[]): Diagnostic[];
+  /** Будущее состояние без записи файлов. */
+  preview(truth: Capability[], deltas: SpecDelta[]): Capability[];
   /** Применить дельты к истине и записать файлы. Возвращает изменённые пути. Применение обязано быть идемпотентным. */
   apply(truth: Capability[], deltas: SpecDelta[]): Promise<string[]>;
   /** Файлы истины, которые затронет apply (относительно корня): для снимка и отката. */
@@ -23,7 +25,7 @@ export interface SpecAdapter {
   sync?(): Promise<void>;
 }
 
-export type SpecAdapterFactory = (root: string, config: Config) => SpecAdapter;
+export type SpecAdapterFactory = (root: string, config: ContractConfig) => SpecAdapter;
 
 const registry = new Map<string, SpecAdapterFactory>();
 
@@ -31,7 +33,7 @@ export function registerSpecAdapter(name: string, factory: SpecAdapterFactory): 
   registry.set(name, factory);
 }
 
-export function createSpecAdapter(root: string, config: Config): SpecAdapter {
+export function createSpecAdapter(root: string, config: ContractConfig): SpecAdapter {
   const factory = registry.get(config.spec.adapter);
   if (!factory) {
     throw new Error(`Адаптер спецификаций "${config.spec.adapter}" не зарегистрирован`);

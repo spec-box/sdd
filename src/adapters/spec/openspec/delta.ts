@@ -1,5 +1,5 @@
 import { diag, type Diagnostic } from '../../../core/diagnostics.js';
-import type { Capability, DeltaOp, Requirement, SpecDelta } from '../../../core/spec-model.js';
+import type { Capability, DeltaOp, Requirement, SpecDelta } from '../../../contract/model.js';
 import { blockToRequirement, codeFenceMask, extractRequirementsSection, normalizeLineEndings, parseRequirementBlocks, parseScenarios, renderRequirement, renderSpec, REQUIREMENT_HEADER, titleFromId, TOP_LEVEL, type RequirementBlock } from './parser.js';
 
 /**

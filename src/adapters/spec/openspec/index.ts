@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import fg from 'fast-glob';
-import type { Config } from '../../../core/config.js';
+import type { ContractConfig } from '../../../contract/config.js';
 import type { Diagnostic } from '../../../core/diagnostics.js';
 import { SboxError } from '../../../core/errors.js';
 import { assetsDir, exists, readText, toPosix, writeText } from '../../../core/paths.js';
-import { registerSpecAdapter, type SpecAdapter } from '../../../core/spec-adapter.js';
-import type { Capability, SpecDelta } from '../../../core/spec-model.js';
+import { registerSpecAdapter, type SpecAdapter } from '../../../contract/adapter.js';
+import type { Capability, SpecDelta } from '../../../contract/model.js';
 import { applyOpenSpecDelta, checkOpenSpecTruth, parseOpenSpecDelta, validateOpenSpecDeltas, type ParsedOpenSpecDelta } from './delta.js';
 import { codeFenceMask, normalizeLineEndings, parseSpecFile, REQUIREMENT_HEADER } from './parser.js';
 
@@ -20,7 +20,7 @@ export class OpenSpecAdapter implements SpecAdapter {
 
   constructor(
     private readonly root: string,
-    private readonly config: Config,
+    private readonly config: ContractConfig,
   ) {}
 
   private get specsRoot(): string {
@@ -81,6 +81,18 @@ export class OpenSpecAdapter implements SpecAdapter {
     return out;
   }
 
+  preview(truth: Capability[], deltas: SpecDelta[]): Capability[] {
+    const next = new Map(truth.map(c => [c.id, c]));
+    for (const delta of deltas) {
+      const current = next.get(delta.capabilityId);
+      const target = this.targetFor(next, delta);
+      const text = applyOpenSpecDelta(current ? readText(target) : null, delta);
+      const cap = parseSpecFile(text, delta.capabilityId, toPosix(path.relative(this.root, target)));
+      if (cap.requirements.length) next.set(cap.id, cap); else next.delete(cap.id);
+    }
+    return [...next.values()];
+  }
+
   async apply(truth: Capability[], deltas: SpecDelta[]): Promise<string[]> {
     const byId = new Map(truth.map((c) => [c.id, c]));
     const written: string[] = [];
@@ -104,7 +116,7 @@ export class OpenSpecAdapter implements SpecAdapter {
   }
 }
 
-export function openSpecRootExists(root: string, config: Config): boolean {
+export function openSpecRootExists(root: string, config: ContractConfig): boolean {
   return exists(path.join(root, config.spec.openspec.root));
 }
 

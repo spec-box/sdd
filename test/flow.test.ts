@@ -7,7 +7,7 @@ import { loadConfig } from '../src/core/config.js';
 import { buildPacket } from '../src/core/packet.js';
 import { approveGate, nextStep, rejectGate } from '../src/core/phases.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESEARCH, RESULT, read, tempProject, write } from './helpers.js';
 
 async function report(root: string, dir: string, role: string, phase: string, md: string) {

@@ -1,4 +1,4 @@
-import { slugify, type Capability, type Requirement, type Scenario } from '../../../core/spec-model.js';
+import { slugify, type Capability, type Requirement, type Scenario } from '../../../contract/model.js';
 
 /**
  * Разбор спецификаций OpenSpec (openspec/specs/<capability-path>/spec.md).

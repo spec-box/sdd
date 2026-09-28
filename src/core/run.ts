@@ -11,7 +11,7 @@ import { chooseModel, READ_ONLY_ROLES, transportRetryAllowed, type AgentRunner, 
 import { formatDiagnostics } from '../cli/output.js';
 import { expandHome, toPosix, writeText } from './paths.js';
 import type { Config } from './config.js';
-import type { SpecAdapter } from './spec-adapter.js';
+import type { SpecAdapter } from '../contract/adapter.js';
 
 export const STOP_FILE = '.stop';
 

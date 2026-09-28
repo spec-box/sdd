@@ -7,7 +7,7 @@ import { loadConfig } from '../src/core/config.js';
 import { acquireLock } from '../src/core/lock.js';
 import { resumeChange, routeBlocker } from '../src/core/phases.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { BLOCKED, RESULT, git, tempProject, write } from './helpers.js';
 
 async function report(root: string, dir: string, role: string, phase: string, md: string) {

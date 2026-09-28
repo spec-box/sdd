@@ -26,4 +26,4 @@ verification: needs-review
 
 ## Истина спецификаций
 
-<!-- Формат (spec-box / OpenSpec), пути файлов, как читать: `sbox spec list`. Внешняя система выгрузки, если есть. -->
+<!-- Формат (spec-box / OpenSpec), пути файлов, как читать: `sbox-contract index`. Внешняя система выгрузки, если есть. -->

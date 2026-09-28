@@ -7,7 +7,7 @@ import { parseSpecFile } from '../src/adapters/spec/openspec/parser.js';
 import { archiveChange, isEmptyTree } from '../src/core/archive.js';
 import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
-import { createSpecAdapter, type SpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter, type SpecAdapter } from '../src/contract/adapter.js';
 import { read, tempProject, write } from './helpers.js';
 
 const DELTA = '## ADDED Requirements\n\n### Requirement: Two-Factor Authentication\nThe system MUST support TOTP.\n\n#### Scenario: Enrollment\n- **WHEN** the user enables 2FA\n- **THEN** a QR code is displayed\n';
@@ -82,6 +82,7 @@ describe('атомарная архивация', () => {
     const broken: SpecAdapter = {
       ...adapter,
       name: adapter.name,
+      preview: (t, d) => adapter.preview(t, d),
       readTruth: () => adapter.readTruth(),
       readDelta: (d) => adapter.readDelta(d),
       validate: (t, d) => adapter.validate(t, d),

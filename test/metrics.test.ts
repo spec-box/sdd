@@ -6,7 +6,7 @@ import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { changeMetrics } from '../src/core/metrics.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESEARCH, RESULT, tempProject, write } from './helpers.js';
 
 describe('метрики без папки runs', () => {

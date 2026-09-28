@@ -1,7 +1,7 @@
 import YAML from 'yaml';
 import { z } from 'zod';
 import { diag, type Diagnostic } from '../../../core/diagnostics.js';
-import { slugify, type Capability, type DeltaOp, type Requirement, type SpecDelta } from '../../../core/spec-model.js';
+import { slugify, type Capability, type DeltaOp, type Requirement, type SpecDelta } from '../../../contract/model.js';
 import { toRequirement, toScenario } from './yaml.js';
 
 const assertSchema = z.object({ assert: z.string().min(1), description: z.string().optional() });

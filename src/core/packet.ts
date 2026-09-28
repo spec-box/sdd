@@ -10,7 +10,7 @@ import { exists, toPosix } from './paths.js';
 import type { Change, Phase } from './change.js';
 import type { Config } from './config.js';
 import type { Role } from './phases.js';
-import type { SpecAdapter } from './spec-adapter.js';
+import type { SpecAdapter } from '../contract/adapter.js';
 
 /** Пакет для роли: девять полей из docs/design.md (раздел 5) плюс служебные пути и команды. */
 export interface RolePacket {
@@ -117,6 +117,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
   const evidence = exists(evidenceDir) ? fs.readdirSync(evidenceDir).sort().map((f) => toPosix(path.relative(root, path.join(evidenceDir, f)))) : [];
 
   const runId = `r${change.runs.length + 1}`;
+  const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
   const rel = (p: string) => toPosix(path.relative(root, p));
   const constraints: string[] = [
     'Не вызывать других агентов и не расширять объём задачи.',
@@ -174,11 +175,12 @@ export function buildPacket(ctx: PacketContext): RolePacket {
       status: `sbox status --change ${change.id} --json`,
       instructions: `sbox instructions <artifact> --change ${change.id} --json`,
       validate: `sbox validate --change ${change.id} --json`,
-      specList: 'sbox spec list --json',
+      specList: 'sbox-contract index --json',
       wikiIndex: 'sbox-wiki index --json',
       wikiSearch: 'sbox-wiki search <query> --json',
       wikiGet: 'sbox-wiki get <id> --json',
-      specShow: 'sbox spec show <capability-id> --json',
+      specShow: 'sbox-contract show <capability-id> --json',
+      contractDiff: `sbox-contract diff --delta ${quote(rel(path.join(dir, 'specs')))} --preview --json`,
       changeset: `sbox changeset show --change ${change.id} --json`,
       log: `sbox log add --change ${change.id} --tag CODE "<факт с путём>"`,
       browser: 'sbox-browser goto <url> | snapshot | click <eN|селектор> | fill <eN> <текст> | text | console --errors | requests | screenshot (вход человека: sbox-browser login <url> --profile <имя>; справка: sbox-browser --help)',

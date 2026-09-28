@@ -25,7 +25,7 @@ export function installHostMaterials(root: string, target: string, config?: Conf
       next = 'В Claude Code: `/sbox-run` после `sbox change new <id> --title "..." --request "..."`.';
       break;
     case 'codex':
-      notes.push('Для Codex установлены скиллы sbox-approve, sbox-browser и sbox-wiki в .agents/skills; оркестратор sbox-run, агенты ролей и раздел AGENTS.md для Codex появятся на этапе 4 плана.');
+      notes.push('Для Codex установлены скиллы sbox-approve, sbox-browser, sbox-contract и sbox-wiki в .agents/skills; оркестратор sbox-run, агенты ролей и раздел AGENTS.md для Codex появятся на этапе 4 плана.');
       next = 'В Codex: скиллы из .agents/skills доступны сразу; изменения пока ведутся из Claude Code или командами `sbox next` и `sbox report` вручную.';
       break;
   }

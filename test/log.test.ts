@@ -5,7 +5,7 @@ import { createChange, loadChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { appendLogEntry, LOG_ENTRY_MAX, parseLog } from '../src/core/log.js';
 import { buildPacket } from '../src/core/packet.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { read, tempProject, write } from './helpers.js';
 
 describe('журнал изменения', () => {

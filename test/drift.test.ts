@@ -7,7 +7,7 @@ import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { deliverChange, readinessChecklist } from '../src/core/deliver.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESULT, tempProject, write } from './helpers.js';
 
 async function reviewed(root: string, id: string) {

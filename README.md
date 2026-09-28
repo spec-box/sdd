@@ -39,7 +39,8 @@ src/core/        доменная модель, конфиг, состояние
 src/adapters/    spec/spec-box, spec/openspec — истина и дельты в двух форматах; runner/claude, runner/codex — среды агентов;
                  repo/github, repo/local — хостинг репозитория; host/skills — раскладки скиллов по хостам, host/claude — агенты Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
-                 status, instructions, validate, spec, archive, log
+                 status, instructions, validate, archive, log
+src/contract/    sbox-contract: модель поведения, конфигурация, поиск, дельты и применение
 src/wiki/        sbox-wiki: индекс и кеш Markdown, поиск, страницы, ссылки и валидация
 src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,
                  снимок дерева доступности со ссылками, поиск и установка браузера, вход человеком, перенос состояния
@@ -95,6 +96,27 @@ sbox-browser stop
 ```
 
 Существующий браузер вместо установки: флаг `--executable`, переменная `SBOX_BROWSER_EXECUTABLE` или `browser.executable` в `.sbox/config.yaml`; без них по порядку проверяются кэш инструмента, кэш puppeteer, системный Chrome, Chromium, Edge и Brave. Сессия это фоновый процесс с браузером: команды идут к нему через локальный сокет, поэтому страница, куки, консоль и сетевые ошибки сохраняются между вызовами; `--session <имя>` даёт несколько независимых браузеров, простой 30 минут завершает сессию. Настройки в секции `browser` конфига: `executable`, `headless`, `profile`, `baseUrl`, `cacheDir`, `viewport`, `timeoutMs`, `idleMinutes`; те же значения задаются переменными `SBOX_BROWSER_EXECUTABLE`, `SBOX_BROWSER_HEADLESS`, `SBOX_BROWSER_PROFILE`, `SBOX_BROWSER_BASE_URL`, `SBOX_BROWSER_CACHE_DIR` (каталог инструмента: `SBOX_BROWSER_HOME`) и глобальными флагами `--profile`, `--session`, `--timeout`, `--cwd`. Все команды поддерживают `--json`, ошибки разбора аргументов тоже приходят в JSON-конверте. Профили и файлы состояния содержат секреты входа и живут в `~/.sbox/browser`, вне репозитория. Скилл `sbox-browser` лежит в `assets/skills` и копируется в папку хоста командой `sbox host install --target claude | codex`; агентам researcher, tester и verifier он подключается по `metadata.roles` (в Claude Code полем `skills`).
+
+## Контракт поведения продукта
+
+Отдельный `sbox-contract` работает со спецификациями spec-box и OpenSpec без запуска процесса SDD. В существующем проекте используется секция `spec` из `.sbox/config.yaml`, отдельно — `.sbox-contract.yaml` или автоопределение по `.tms.json` / `openspec/specs`. `--cwd` задаёт каталог, `--format` — явный выбор формата.
+
+```bash
+sbox-contract init --format spec-box       # новый самостоятельный проект
+sbox-contract index --json
+sbox-contract search "повторная отправка заказа" --json
+sbox-contract show orders --json
+sbox-contract delta init ./changes/add-export
+# записать файлы дельты по инструкции в созданном README
+sbox-contract diff --delta ./changes/add-export --preview --json
+sbox-contract validate --delta ./changes/add-export --json
+sbox-contract apply --delta ./changes/add-export --check --json
+sbox-contract apply --delta ./changes/add-export --if-match <revision>
+```
+
+Поиск возвращает отдельные требования и сценарии с источниками. Предпросмотр показывает будущее состояние без записи. Для применения нужна `revision` из проверки: изменение истины или дельты после проверки вызывает конфликт. При ошибке применения файлы восстанавливаются. Самостоятельное применение не архивирует задачу, не коммитит и не создаёт PR.
+
+**Группа `sbox spec` удалена:** `list` заменён на `sbox-contract index`, `show` — на `sbox-contract show`, `diff --change <id>` — на `sbox-contract diff --delta <папка-изменения>/specs`. Обновите скиллы проектов командой `sbox host install --target claude` или `--target codex`. `sbox archive` и `sbox deliver` продолжают применять дельты через общий модуль; в процессе SDD роли используют только чтение и подготовку дельт.
 
 ## Wiki для агентов
 

@@ -10,7 +10,7 @@ import { loadConfig } from '../src/core/config.js';
 import { deliverChange, readinessChecklist } from '../src/core/deliver.js';
 import { parseGateCommand, pollPullRequestGate } from '../src/core/gates.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESULT, git, read, tempProject, write } from './helpers.js';
 
 /** Фейковый GitHub API в памяти: пул-реквесты и комментарии. */

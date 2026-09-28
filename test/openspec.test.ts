@@ -9,7 +9,7 @@ import { archiveChange } from '../src/core/archive.js';
 import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESULT, read, tempProject, write } from './helpers.js';
 
 const AUTH = fs.readFileSync(path.join(import.meta.dirname, 'fixtures/openspec-project/openspec/specs/auth/spec.md'), 'utf8');

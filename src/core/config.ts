@@ -1,3 +1,4 @@
+import { specSchema } from '../contract/config.js';
 import path from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
@@ -14,17 +15,7 @@ const modelsSchema = z.record(z.string(), z.string());
 
 export const configSchema = z.object({
   version: z.literal(1),
-  spec: z.object({
-    adapter: z.enum(['spec-box', 'openspec']),
-    'spec-box': z
-      .object({
-        config: z.string().default('.tms.json'),
-        files: z.array(z.string()).optional(),
-        newFile: z.string().default('specs/{code}.spec-box.yml'),
-      })
-      .prefault({}),
-    openspec: z.object({ root: z.string().default('openspec') }).prefault({}),
-  }),
+  spec: specSchema,
   autonomy: z.enum(AUTONOMY_PROFILES).default('supervised'),
   gates: z
     .object({

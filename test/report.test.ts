@@ -5,7 +5,7 @@ import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { approveGate, nextStep } from '../src/core/phases.js';
 import { applyReport, appliedOutcome, normalizeQuote, resolveReportFile } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { RESEARCH, RESULT, tempProject, write } from './helpers.js';
 
 const REQUEST = 'Формы открываются прямо на странице списка. Для этого нужно обновить th-ui.';

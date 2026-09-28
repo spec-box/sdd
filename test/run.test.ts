@@ -5,7 +5,7 @@ import '../src/adapters/spec/index.js';
 import { createChange, loadChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { requestStop, runChange } from '../src/core/run.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import type { AgentRunner, RunRequest, RunResponse } from '../src/core/runner.js';
 import { RESEARCH, RESULT, read, tempProject, write } from './helpers.js';
 

@@ -4,7 +4,7 @@ import '../src/adapters/spec/index.js';
 import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
 import { applyReport } from '../src/core/report.js';
-import { createSpecAdapter } from '../src/core/spec-adapter.js';
+import { createSpecAdapter } from '../src/contract/adapter.js';
 import { parseAnalogFromDesign, wiringGaps } from '../src/core/wiring.js';
 import { RESULT, git, read, tempProject, write } from './helpers.js';
 

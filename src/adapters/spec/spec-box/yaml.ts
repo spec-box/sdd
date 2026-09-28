@@ -1,6 +1,6 @@
 import YAML from 'yaml';
 import { z } from 'zod';
-import { slugify, type Capability, type Requirement, type Scenario } from '../../../core/spec-model.js';
+import { slugify, type Capability, type Requirement, type Scenario } from '../../../contract/model.js';
 
 /** Формат файла spec-box (см. README @spec-box/sync). */
 const assertSchema = z.object({ assert: z.string().min(1), description: z.string().optional() });

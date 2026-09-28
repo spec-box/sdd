@@ -3,7 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { SboxError } from './errors.js';
-import type { SpecDelta } from './spec-model.js';
+import type { SpecDelta } from '../contract/model.js';
 import type { TestCase } from './test-reports.js';
 
 /**

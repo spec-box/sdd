@@ -15,7 +15,8 @@
   "bin": {
     "sbox": "bin/sbox.js",
     "sbox-browser": "bin/sbox-browser.js",
-    "sbox-wiki": "bin/sbox-wiki.js"
+    "sbox-wiki": "bin/sbox-wiki.js",
+    "sbox-contract": "bin/sbox-contract.js"
   },
   "files": [
     "bin",

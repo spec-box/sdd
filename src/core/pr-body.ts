@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Change } from './change.js';
 import type { RoleResult } from './result.js';
-import type { SpecDelta } from './spec-model.js';
+import type { SpecDelta } from '../contract/model.js';
 import { exists, readText } from './paths.js';
 
 export interface DodItem {

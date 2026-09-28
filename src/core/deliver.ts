@@ -12,7 +12,7 @@ import { parseRoleResult, type RoleResult } from './result.js';
 import { taskProgress } from './tasks.js';
 import type { Config } from './config.js';
 import type { DeliveryReceipt, RepoHost } from './repo-host.js';
-import type { SpecAdapter } from './spec-adapter.js';
+import type { SpecAdapter } from '../contract/adapter.js';
 
 export interface DeliverOptions {
   root: string;

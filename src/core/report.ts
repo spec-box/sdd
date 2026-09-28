@@ -14,7 +14,7 @@ import picomatch from 'picomatch';
 import { protectedViolations, snapshotProtected, trackedChangedFiles } from './protect.js';
 import { exists, readText, toPosix, writeText } from './paths.js';
 import type { Config } from './config.js';
-import type { SpecAdapter } from './spec-adapter.js';
+import type { SpecAdapter } from '../contract/adapter.js';
 
 export interface RunReceiptInput {
   runner?: string;

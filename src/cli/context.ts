@@ -1,6 +1,6 @@
 import { loadConfig, type Config } from '../core/config.js';
 import { requireProjectRoot } from '../core/paths.js';
-import { createSpecAdapter, type SpecAdapter } from '../core/spec-adapter.js';
+import { createSpecAdapter, type SpecAdapter } from '../contract/adapter.js';
 import { resolveChange, type Change } from '../core/change.js';
 import '../adapters/spec/index.js';
 import '../adapters/runner/index.js';

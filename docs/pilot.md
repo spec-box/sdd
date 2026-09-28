@@ -33,7 +33,7 @@ runner:
 
 Быстрый способ: напечатайте промпт командой `sbox prompt show project-docs` (формулировки подставляются под адаптер проекта: spec-box или OpenSpec), отправьте его в Claude Code в корне репозитория. Прочитайте результат и поправьте руками: это утверждает человек.
 
-Спецификации. Если в проекте есть `.tms.json` и YAML spec-box, `sbox spec list` покажет их. Если нет, истина заводится в `specs/*.spec-box.yml`; можно начать с пустой истины, планировщик создаст новую capability дельтой.
+Спецификации. Если в проекте есть `.tms.json` и YAML spec-box, `sbox-contract index` покажет их. Если нет, истина заводится в `specs/*.spec-box.yml`; можно начать с пустой истины, планировщик создаст новую capability дельтой.
 
 Закоммитьте `.sbox/`, `.claude/`, `.gitignore` и `specs/` в репозиторий: состояние изменений живёт в файлах.
 
@@ -82,7 +82,7 @@ sbox reject plan --comment "Сузить объём: без миграции"
 ```bash
 sbox status                                      # фаза, статус, артефакты, задачи, change-set
 sbox validate                                    # артефакты и дельты
-sbox spec diff                                   # что меняется в истине
+sbox-contract diff --delta .sbox/changes/<id>/specs                                   # что меняется в истине
 cat .sbox/changes/add-greeting/runs/r3/result.md # полный ответ роли
 ```
 

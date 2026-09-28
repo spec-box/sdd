@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SboxError } from '../../core/errors.js';
-import { assetsDir } from '../../core/paths.js';
+import { assetsDir, readText } from '../../core/paths.js';
 import { jsonAnswerToMarkdown } from '../../core/result.js';
 import { registerRunner, type AgentRunner, type RunFailure, type RunRequest, type RunResponse } from '../../core/runner.js';
 import type { Config } from '../../core/config.js';
@@ -17,15 +17,15 @@ const TRANSPORT_RE = /(ECONNRESET|ETIMEDOUT|ENOTFOUND|socket hang up|network|con
  */
 export class CodexRunner implements AgentRunner {
   readonly name = 'codex';
-  readonly supportsResume = false;
-  private capabilities: { ok: boolean; missing: string[]; version: string } | null = null;
+  get supportsResume(): boolean { return this.probe().resume; }
+  private capabilities: { ok: boolean; missing: string[]; version: string; resume: boolean } | null = null;
 
   constructor(
     private readonly executable: string,
     private readonly options: { sandboxWrite: string; sandboxRead: string; approvalPolicy: string; extraConfig: string[] },
   ) {}
 
-  probe(): { ok: boolean; missing: string[]; version: string } {
+  probe(): { ok: boolean; missing: string[]; version: string; resume: boolean } {
     if (this.capabilities) return this.capabilities;
     let help = '';
     let version = '';
@@ -36,7 +36,12 @@ export class CodexRunner implements AgentRunner {
       throw new SboxError('CODEX_UNAVAILABLE', `Не удалось запустить ${this.executable}: ${(e as Error).message}`, 'Установите Codex CLI или укажите runner.codex.executable.');
     }
     const missing = REQUIRED_FLAGS.filter((f) => !help.includes(f));
-    this.capabilities = { ok: missing.length === 0, missing, version };
+    let resume = false;
+    try {
+      const resumeHelp = execFileSync(this.executable, ['exec', 'resume', '--help'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      resume = ['--output-schema', '--output-last-message', '--json', '--model', '--config'].every(flag => resumeHelp.includes(flag));
+    } catch { /* Older clients can still start fresh sessions. */ }
+    this.capabilities = { ok: missing.length === 0, missing, version, resume };
     return this.capabilities;
   }
 
@@ -50,7 +55,7 @@ export class CodexRunner implements AgentRunner {
     const schema = path.join(assetsDir(), 'schema', 'sbox-answer.schema.json');
     const args = [
       'exec',
-      '--cd', req.cwd,
+      ...(req.resumeSession && caps.resume ? ['resume'] : ['--cd', req.cwd]),
       '--model', req.model,
       '--skip-git-repo-check',
       '--json',
@@ -58,12 +63,13 @@ export class CodexRunner implements AgentRunner {
       '--output-last-message', lastMessage,
       '-c', `model_reasoning_effort="${req.effort ?? 'medium'}"`,
       '-c', 'agents.enabled=false',
-      '--sandbox', req.readOnly ? this.options.sandboxRead : this.options.sandboxWrite,
+      '-c', `sandbox_mode=${JSON.stringify(req.readOnly ? this.options.sandboxRead : this.options.sandboxWrite)}`,
       '-c', `approval_policy="${this.options.approvalPolicy}"`,
       '-c', 'approvals_reviewer="auto_review"',
       ...this.options.extraConfig.flatMap((c) => ['-c', c]),
+      ...(req.resumeSession && caps.resume ? [req.resumeSession, '-'] : ['-']),
     ];
-    const prompt = `${req.prompt}\n\nПоследнее сообщение верни строго как JSON-объект по схеме вывода: { "markdown": <полный ответ в Markdown>, "result": <содержимое блока sbox-result как объект> }.`;
+    const prompt = `${req.prompt}\n\n${readText(path.join(assetsDir(), 'hosts', 'codex', 'headless-result.md'))}`;
     const started = new Date().toISOString();
     return new Promise<RunResponse>((resolve) => {
       const events = fs.createWriteStream(eventsPath, { flags: 'a' });
@@ -72,6 +78,14 @@ export class CodexRunner implements AgentRunner {
       let lastProgress = Date.now();
       let finishedBy: RunFailure | null = null;
       let stderrText = '';
+      let eventBuffer = '';
+      let session: string | undefined;
+      const readEvent = (line: string) => {
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'thread.started' && typeof event.thread_id === 'string') session = event.thread_id;
+        } catch { /* Keep non-JSON diagnostics in the raw events log. */ }
+      };
       const killGroup = (sig: NodeJS.Signals) => {
         try {
           if (child.pid) process.kill(-child.pid, sig);
@@ -102,7 +116,8 @@ export class CodexRunner implements AgentRunner {
         events.end();
         stderr.end();
         const finished = new Date().toISOString();
-        const base = { started, finished, eventsPath, stderrPath, exitCode: code };
+        if (eventBuffer.trim()) readEvent(eventBuffer);
+        const base = { started, finished, eventsPath, stderrPath, exitCode: code, ...(session ? { session } : {}) };
         if (finishedBy === 'stopped') return resolve({ ...base, usable: false, markdown: null, failure: 'stopped', failureMessage: 'остановлено' });
         if (finishedBy === 'timeout') return resolve({ ...base, usable: false, markdown: null, failure: 'timeout', failureMessage: 'таймаут запуска или бездействия' });
         let markdown: string | null = null;
@@ -123,6 +138,10 @@ export class CodexRunner implements AgentRunner {
       child.stdout.on('data', (chunk: Buffer) => {
         lastProgress = Date.now();
         events.write(chunk);
+        eventBuffer += chunk.toString();
+        const lines = eventBuffer.split('\n');
+        eventBuffer = lines.pop()!;
+        for (const line of lines) readEvent(line);
       });
       child.stderr.on('data', (chunk: Buffer) => {
         stderrText += chunk.toString();

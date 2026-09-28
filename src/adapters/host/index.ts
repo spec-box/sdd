@@ -1,3 +1,5 @@
+import { codexMaterials } from './codex/index.js';
+import { writeText } from '../../core/paths.js';
 import { SboxError } from '../../core/errors.js';
 import type { Config } from '../../core/config.js';
 import { loadSkills } from '../../core/skills.js';
@@ -16,6 +18,7 @@ export interface HostInstallResult {
 export function installHostMaterials(root: string, target: string, config?: Config): HostInstallResult {
   if (!isHostTarget(target)) throw new SboxError('HOST_UNKNOWN', `Неизвестный хост ${target}; доступны ${HOST_TARGETS.join(' и ')}.`);
   const skills = loadSkills(root);
+  const codex = target === 'codex' ? codexMaterials(root, config, skills) : new Map<string, string>();
   const files = installSkills(root, target, skills);
   const notes: string[] = [];
   let next: string;
@@ -25,8 +28,9 @@ export function installHostMaterials(root: string, target: string, config?: Conf
       next = 'В Claude Code: `/sbox-run` после `sbox change new <id> --title "..." --request "..."`.';
       break;
     case 'codex':
-      notes.push('Для Codex установлены скиллы sbox-approve, sbox-browser, sbox-contract и sbox-wiki в .agents/skills; оркестратор sbox-run, агенты ролей и раздел AGENTS.md для Codex появятся на этапе 4 плана.');
-      next = 'В Codex: скиллы из .agents/skills доступны сразу; изменения пока ведутся из Claude Code или командами `sbox next` и `sbox report` вручную.';
+      for (const [file, text] of codex) { writeText(file, text); files.push(file); }
+      notes.push('Перезапустите сессию Codex, чтобы загрузить новые агенты. Проектные материалы должны быть доверенными в Codex.');
+      next = 'В Codex: `$sbox-run` после `sbox change new <id> --title "..." --request "..."`. Headless: `sbox run --runner codex --change <id>`.';
       break;
   }
   return { target, files, notes, next };

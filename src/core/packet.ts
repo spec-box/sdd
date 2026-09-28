@@ -1,4 +1,4 @@
-import { resolveModel, claudeAgentName } from './model-policy.js';
+import { resolveModel, hostAgentName } from './model-policy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadRoleText } from './roles.js';
@@ -18,7 +18,7 @@ export interface RolePacket {
   version: 1;
   change: { id: string; title: string; dir: string; phase: Phase; size: string; status: string; base_revision: string | null };
   role: Role;
-  execution: ReturnType<typeof resolveModel> & { agent: string | null };
+  execution: ReturnType<typeof resolveModel> & { agent: string };
   phase: Phase;
   runId: string;
   objective: string;
@@ -148,7 +148,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     version: 1,
     change: { id: change.id, title: change.title, dir: rel(dir), phase, size: change.size, status: change.status, base_revision: change.base_revision },
     role,
-    execution: { ...execution, agent: execution.runner === 'claude' ? claudeAgentName(role, execution.profile) : null },
+    execution: { ...execution, agent: hostAgentName(role, execution.profile) },
     phase,
     runId,
     objective: OBJECTIVES[`${role}:${phase}`] ?? `Выполнить роль ${role} в фазе ${phase}.`,
@@ -239,6 +239,6 @@ export function renderPrompt(packet: RolePacket): string {
     JSON.stringify(data, null, 2),
     '```',
     '',
-    `Запиши полный ответ (Markdown и завершающий блок \`# sbox-result\`) в файл \`${packet.resultFile}\` и продублируй его в последнем сообщении.`,
+    packet.execution.runner === 'codex' ? '' : `Запиши полный ответ (Markdown и завершающий блок \`# sbox-result\`) в файл \`${packet.resultFile}\` и продублируй его в последнем сообщении.`,
   ].join('\n');
 }

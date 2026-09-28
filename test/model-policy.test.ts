@@ -79,7 +79,7 @@ describe('профили моделей по раннерам', () => {
     const json = JSON.parse(next.stdout);
     expect(json.execution).toMatchObject({ model: 'c-simple', effort: 'low', profile: 'simple', agent: 'sbox-implementer-simple' });
     const codex = JSON.parse(cli(root, ['next', '--change', 'models', '--runner', 'codex', '--brief']).stdout);
-    expect(codex.execution).toMatchObject({ model: 'x-simple', profile: 'simple', agent: null });
+    expect(codex.execution).toMatchObject({ model: 'x-simple', profile: 'simple', agent: 'sbox-implementer-simple' });
     const models = JSON.parse(cli(root, ['models', '--change', 'models']).stdout);
     expect(models.rows.find((r: { role: string; runner: string }) => r.role === 'reviewer' && r.runner === 'codex').profile).toBe('complex');
   });

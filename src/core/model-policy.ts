@@ -52,10 +52,12 @@ export function resolveModel(config: Config, runner: RunnerName, role: typeof RO
   const profile = profileOverride ?? selectProfile(config, role, complexity);
   return { runner, profile, ...config.runner[runner].profiles[profile] };
 }
-export const claudeAgentName = (role: string, profile: ModelProfile) => `sbox-${role}-${profile}`;
+export const hostAgentName = (role: string, profile: ModelProfile) => `sbox-${role}-${profile}`;
 
 /** При автоматических возвратах сложность можно повысить, но нельзя незаметно понизить. */
 export function higherComplexity(previous: Complexity[keyof Complexity] | undefined, next: Complexity[keyof Complexity]) {
   const order = ['простая', 'обычная', 'высокая'] as const;
   return previous && order.indexOf(previous) > order.indexOf(next) ? previous : next;
 }
+
+export const claudeAgentName = hostAgentName;

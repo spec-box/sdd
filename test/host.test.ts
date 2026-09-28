@@ -47,15 +47,19 @@ describe('host: скиллы из единого источника', () => {
     expect(verifier).not.toContain('---\ndescription:');
   });
 
-  it('codex: скиллы в .agents/skills без sbox-run (metadata.hosts), агенты пока не генерируются', () => {
+  it('codex: устанавливает общий оркестратор, агенты всех профилей и AGENTS.md', () => {
     const root = tempProject('spec-box-project', { git: false });
     const result = installHostMaterials(root, 'codex', loadConfig(root));
-    const rel = result.files.map((f) => path.relative(root, f)).sort();
-    expect(rel).toEqual(['sbox-approve', 'sbox-browser', 'sbox-contract', 'sbox-wiki'].map((n) => SKILL_LAYOUT.codex(n)).sort());
+    const rel = result.files.map((f) => path.relative(root, f));
+    expect(rel).toEqual(expect.arrayContaining(BUILTIN.map((n) => SKILL_LAYOUT.codex(n))));
+    expect(rel.filter(f => f.endsWith('.toml'))).toHaveLength(28);
+    expect(rel).toContain('AGENTS.md');
+    for (const name of BUILTIN) {
+      expect(fs.readFileSync(path.join(root, SKILL_LAYOUT.codex(name)), 'utf8')).toBe(fs.readFileSync(path.join(assetsDir(), 'skills', `${name}.md`), 'utf8'));
+    }
     expect(result.next).toMatch(/Codex/);
-    expect(fs.readFileSync(path.join(root, '.agents/skills/sbox-browser/SKILL.md'), 'utf8')).toContain('name: sbox-browser');
     expect(fs.existsSync(path.join(root, '.claude'))).toBe(false);
-    expect(result.notes.join(' ')).toMatch(/этапе 4/);
+    expect(fs.existsSync(path.join(root, '.codex/config.toml'))).toBe(false);
     expect(() => installHostMaterials(root, 'cursor')).toThrow(/HOST_UNKNOWN|Неизвестный хост/);
   });
 

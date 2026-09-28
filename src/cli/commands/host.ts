@@ -1,12 +1,9 @@
+import { assetsDir, readText } from '../../core/paths.js';
 import path from 'node:path';
 import type { Command } from 'commander';
 import { installHostMaterials } from '../../adapters/host/index.js';
 import { projectContext } from '../context.js';
 import { emit, emitError } from '../output.js';
-
-const CLAUDE_MD_SNIPPET = `## Изменения через @spec-box/sdd
-Продуктовые изменения ведутся инструментом @spec-box/sdd: \`sbox change new <id> --title "..." --request "..."\`, затем скилл \`/sbox-run\`.
-Не редактируй артефакты в .sbox/changes вручную и не меняй истину спецификаций напрямую: только дельты через роли.`;
 
 export function registerHost(program: Command): void {
   const host = program.command('host').description('Материалы для хостов разработчика');
@@ -20,7 +17,8 @@ export function registerHost(program: Command): void {
         const ctx = projectContext(g.cwd);
         const result = installHostMaterials(ctx.root, opts.target, ctx.config);
         const files = result.files.map((f) => path.relative(ctx.root, f));
-        emit(g, { target: result.target, files, notes: result.notes, next: result.next, claudeMdSnippet: CLAUDE_MD_SNIPPET }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), ...d.notes.map((n) => `  ! ${n}`), '', d.next, 'Рекомендуемая строка для CLAUDE.md или AGENTS.md проекта:', '', d.claudeMdSnippet].join('\n'));
+        const claudeMdSnippet = opts.target === 'claude' ? readText(path.join(assetsDir(), 'hosts', 'claude', 'project.md')).trim() : undefined;
+        emit(g, { claudeMdSnippet, target: result.target, files, notes: result.notes, next: result.next }, (d) => [`Материалы для ${d.target}:`, ...d.files.map((f) => `  + ${f}`), ...d.notes.map((n) => `  ! ${n}`), '', d.next, ...(d.claudeMdSnippet ? ['Рекомендуемая строка для CLAUDE.md проекта:', '', d.claudeMdSnippet] : [])].join('\n'));
       } catch (e) {
         emitError(g, e);
         process.exitCode = 1;

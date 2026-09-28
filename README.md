@@ -40,6 +40,7 @@ src/adapters/    spec/spec-box, spec/openspec — истина и дельты �
                  repo/github, repo/local — хостинг репозитория; host/skills — раскладки скиллов по хостам, host/claude — агенты Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
                  status, instructions, validate, spec, archive, log
+src/wiki/        sbox-wiki: индекс и кеш Markdown, поиск, страницы, ссылки и валидация
 src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,
                  снимок дерева доступности со ссылками, поиск и установка браузера, вход человеком, перенос состояния
 assets/roles/    определения ролей (Markdown): researcher, planner, tester, implementer, reviewer, verifier…
@@ -94,6 +95,27 @@ sbox-browser stop
 ```
 
 Существующий браузер вместо установки: флаг `--executable`, переменная `SBOX_BROWSER_EXECUTABLE` или `browser.executable` в `.sbox/config.yaml`; без них по порядку проверяются кэш инструмента, кэш puppeteer, системный Chrome, Chromium, Edge и Brave. Сессия это фоновый процесс с браузером: команды идут к нему через локальный сокет, поэтому страница, куки, консоль и сетевые ошибки сохраняются между вызовами; `--session <имя>` даёт несколько независимых браузеров, простой 30 минут завершает сессию. Настройки в секции `browser` конфига: `executable`, `headless`, `profile`, `baseUrl`, `cacheDir`, `viewport`, `timeoutMs`, `idleMinutes`; те же значения задаются переменными `SBOX_BROWSER_EXECUTABLE`, `SBOX_BROWSER_HEADLESS`, `SBOX_BROWSER_PROFILE`, `SBOX_BROWSER_BASE_URL`, `SBOX_BROWSER_CACHE_DIR` (каталог инструмента: `SBOX_BROWSER_HOME`) и глобальными флагами `--profile`, `--session`, `--timeout`, `--cwd`. Все команды поддерживают `--json`, ошибки разбора аргументов тоже приходят в JSON-конверте. Профили и файлы состояния содержат секреты входа и живут в `~/.sbox/browser`, вне репозитория. Скилл `sbox-browser` лежит в `assets/skills` и копируется в папку хоста командой `sbox host install --target claude | codex`; агентам researcher, tester и verifier он подключается по `metadata.roles` (в Claude Code полем `skills`).
+
+## Wiki для агентов
+
+`sbox-wiki` работает с `.sbox/wiki/` (или `project.wiki` из конфига). Для произвольной папки без SDD укажите `--dir ./knowledge`; без конфига и этого флага используется `wiki/`. `--cwd` задаёт каталог проекта.
+
+```bash
+sbox-wiki index --json
+sbox-wiki search "добавить экспорт" --path src/export --limit 5 --json
+sbox-wiki get exports --json
+sbox-wiki get exports --section добавление-формата
+sbox-wiki backlinks exports --json
+sbox-wiki put exports --file /tmp/exports.md --if-match <revision> --json
+sbox-wiki put new-topic.md --file /tmp/new-topic.md --create --json
+sbox-wiki validate --json
+```
+
+Индекс содержит краткое содержание, ситуации применения и заголовки, без текста страниц. Поиск возвращает причины совпадения и фрагменты; это лексический поиск по тексту и метаданным с повышением веса страниц подходящей области кода. `summary` и `read_when` заполняет автор или агент. Страницы — обычный Markdown, кеш хранится вне репозитория во временной папке и обновляется для изменённых файлов; `index --rebuild` пересобирает его.
+
+`get --json` возвращает полное содержимое с фронтматтером и `revision` для последующей записи. `put` отклоняет устаревшую ревизию и ошибки целостности wiki, в том числе удаление раздела, на который ссылается другая страница. `--file -` читает stdin. Для согласованной правки нескольких связанных страниц можно использовать редактор и затем `validate`.
+
+Валидация проверяет типы метаданных, уникальность id, локальные ссылки и якоря заголовков; ссылки из блоков кода не учитываются. Внешние URL не проверяются, ссылки за пределы wiki запрещены; HTML-ссылки и пользовательские HTML-якоря не поддерживаются. Код выхода 1 означает ошибку; отсутствие summary/read_when — предупреждение. Скилл `sbox-wiki` устанавливается для Claude и Codex через `sbox host install`; `sbox doctor` использует ту же проверку wiki.
 
 ## Состояние
 

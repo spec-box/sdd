@@ -14,7 +14,8 @@
   },
   "bin": {
     "sbox": "bin/sbox.js",
-    "sbox-browser": "bin/sbox-browser.js"
+    "sbox-browser": "bin/sbox-browser.js",
+    "sbox-wiki": "bin/sbox-wiki.js"
   },
   "files": [
     "bin",
@@ -40,12 +41,14 @@
     "@puppeteer/browsers": "^3.2.3",
     "commander": "^15.0.0",
     "fast-glob": "^3.3.3",
+    "markdown-it": "^15.0.2",
     "picomatch": "^4.0.7",
     "puppeteer-core": "^25.12.0",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.2",
     "@types/picomatch": "^4.0.3",
     "tsx": "^4.23.13",

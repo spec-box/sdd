@@ -1,15 +1,13 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import fg from 'fast-glob';
-import { diag, type Diagnostic } from './diagnostics.js';
-import { parseDoc } from './project-docs.js';
-import { exists, readText, toPosix } from './paths.js';
+import type { Diagnostic } from './diagnostics.js';
+import { WikiStore } from '../wiki/store.js';
+import { assetsDir, readText, toPosix } from './paths.js';
 import type { Config } from './config.js';
 
 /**
  * Wiki проекта (docs/design.md, раздел 7): страницы с локальными знаниями об областях кода.
- * Первый шаг: индекс страниц (summary, read_when, source_roots) попадает в пакет каждой роли,
- * роль сама читает страницы, чьи read_when подходят к задаче. Роутер и дистилляция позже.
+ * Индекс страниц (summary, read_when, source_roots) из sbox-wiki попадает в пакет каждой роли,
+ * роль читает страницы, чьи read_when подходят к задаче, и может использовать поиск.
  */
 export interface WikiPage {
   file: string;
@@ -24,31 +22,11 @@ export function wikiDir(root: string, config: Config): string {
   return path.join(root, config.project.wiki);
 }
 
-function asList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String);
-  if (typeof value === 'string' && value.trim()) return [value];
-  return [];
-}
-
 export function loadWiki(root: string, config: Config): WikiPage[] {
-  const dir = wikiDir(root, config);
-  if (!exists(dir)) return [];
-  return fg
-    .sync('**/*.md', { cwd: dir, onlyFiles: true, absolute: true })
-    .filter((f) => path.basename(f).toLowerCase() !== 'readme.md')
-    .sort()
-    .map((f) => {
-      const doc = parseDoc(readText(f));
-      const fm = doc.frontmatter;
-      return {
-        file: toPosix(path.relative(root, f)),
-        id: String(fm.id ?? path.basename(f, '.md')),
-        summary: String(fm.summary ?? ''),
-        read_when: asList(fm.read_when),
-        source_roots: asList(fm.source_roots),
-        areas: asList(fm.areas),
-      };
-    });
+  return new WikiStore(wikiDir(root, config), root).pages()
+    .filter(p => path.basename(p.file).toLowerCase() !== 'readme.md')
+    .map(p => ({ file: toPosix(path.relative(root, path.join(wikiDir(root, config), p.file))), id: p.id,
+      summary: p.summary, read_when: p.read_when, source_roots: p.source_roots, areas: p.areas }));
 }
 
 /** Страницы, чьи source_roots пересекаются с путями задачи; без путей возвращаются все. */
@@ -59,41 +37,9 @@ export function relevantWiki(pages: WikiPage[], paths: string[]): WikiPage[] {
 }
 
 export function doctorWiki(root: string, config: Config): Diagnostic[] {
-  const out: Diagnostic[] = [];
-  for (const page of loadWiki(root, config)) {
-    if (!page.summary) out.push(diag('warning', 'WIKI_SUMMARY', 'У страницы нет summary во фронтматтере', page.file));
-    if (page.read_when.length === 0) out.push(diag('warning', 'WIKI_READ_WHEN', 'У страницы нет read_when: роли не поймут, когда её читать', page.file));
-    for (const r of page.source_roots) {
-      if (!fs.existsSync(path.join(root, r))) out.push(diag('warning', 'WIKI_SOURCE_ROOT', `source_roots указывает на несуществующий путь ${r}`, page.file));
-    }
-  }
-  return out;
+  return new WikiStore(wikiDir(root, config), root).validate()
+    .filter(d => !(path.basename(d.target ?? '').toLowerCase() === 'readme.md' && ['WIKI_SUMMARY', 'WIKI_READ_WHEN'].includes(d.code)))
+    .map(d => ({ ...d, target: toPosix(path.relative(root, path.join(wikiDir(root, config), d.target!))) }));
 }
 
-export const WIKI_README = `# Wiki проекта для ролей @spec-box/sdd
-
-Здесь лежат локальные знания об областях кода, которым не место в общей документации \`.sbox/project/\`:
-как устроен конкретный модуль, какой образец повторять при добавлении похожей функциональности,
-подводные камни области. Одна страница на область или тему. Файл README.md страницей не считается.
-
-Каждая страница начинается с фронтматтера:
-
-\`\`\`yaml
----
-id: wiki.exports              # уникальный идентификатор
-summary: Как устроены модули экспорта и какой образец повторять
-read_when:                    # когда роль обязана прочитать страницу
-  - Добавляется или меняется экспорт данных
-  - Создаётся новый модуль в src/features
-source_roots:                 # пути области; по ним страница попадает в пакет роли
-  - src/features/export
-areas: [client]
-updated: 2026-09-16
-verification: needs-review    # verified после проверки человеком
----
-\`\`\`
-
-Тело: факты с путями, образец для единообразия («новый модуль повторяет структуру \`src/features/export\`: …»),
-подводные камни, что нельзя делать. Индекс всех страниц (summary и read_when) попадает в пакет каждой роли;
-саму страницу роль читает, если read_when подходит к задаче.
-`;
+export const WIKI_README = readText(path.join(assetsDir(), 'project', 'wiki.README.md'));

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { SboxError } from './errors.js';
 import { exists, readText, today, writeText } from './paths.js';
 import { headRevision, isGitRepo } from './changeset.js';
+import { logHeader } from './log.js';
 import type { Config } from './config.js';
 
 export const PHASES = [
@@ -158,6 +159,8 @@ export const changeSchema = z.object({
   coordination: z.unknown().nullable().default(null),
   branch: z.string().optional(),
   pr: z.object({ number: z.number().optional(), url: z.string().optional(), draft: z.boolean().optional() }).optional(),
+  /** Вопросы из последнего ответа планировщика: гейт plan показывает их человеку, ответы приходят через `sbox approve --answer`. */
+  questions: z.array(z.object({ id: z.string(), priority: z.enum(['P0', 'P1', 'P2']), text: z.string(), run: z.string() })).default([]),
   /** Расхождения, показываемые человеку на гейте proposal; идентификаторы C1, C2… перенумеровываются при каждом отчёте. */
   conflicts: z.array(conflictSchema).default([]),
   runs: z.array(runSchema).default([]),
@@ -271,7 +274,7 @@ export function createChange(root: string, config: Config, input: NewChangeInput
   fs.mkdirSync(path.join(dir, 'runs'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'specs'), { recursive: true });
   writeText(path.join(dir, 'request.md'), input.request.endsWith('\n') ? input.request : `${input.request}\n`);
-  writeText(path.join(dir, 'log.md'), `---\nchange: ${input.id}\n---\n\n# Журнал — ${input.id}\n\n<!-- [TASK] событие | [CODE] факт о коде | [RULE] правило | [HUMAN] предпочтение -->\n`);
+  writeText(path.join(dir, 'log.md'), logHeader(input.id));
   saveChange(dir, change);
   return { dir, change };
 }

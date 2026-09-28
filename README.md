@@ -39,7 +39,7 @@ src/core/        доменная модель, конфиг, состояние
 src/adapters/    spec/spec-box, spec/openspec — истина и дельты в двух форматах; runner/claude, runner/codex — среды агентов;
                  repo/github, repo/local — хостинг репозитория; host/skills — раскладки скиллов по хостам, host/claude — агенты Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
-                 status, instructions, validate, spec, archive
+                 status, instructions, validate, spec, archive, log
 src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,
                  снимок дерева доступности со ссылками, поиск и установка браузера, вход человеком, перенос состояния
 assets/roles/    определения ролей (Markdown): researcher, planner, tester, implementer, reviewer, verifier…

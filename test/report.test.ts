@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import '../src/adapters/spec/index.js';
-import { createChange, loadChange } from '../src/core/change.js';
+import { createChange, loadChange, saveChange } from '../src/core/change.js';
 import { loadConfig } from '../src/core/config.js';
-import { nextStep } from '../src/core/phases.js';
+import { approveGate, nextStep } from '../src/core/phases.js';
 import { applyReport, appliedOutcome, normalizeQuote, resolveReportFile } from '../src/core/report.js';
 import { createSpecAdapter } from '../src/core/spec-adapter.js';
 import { RESEARCH, RESULT, tempProject, write } from './helpers.js';
@@ -123,5 +123,33 @@ describe('повторный и переписанный отчёт', () => {
     const other = resolveReportFile(dir, loadChange(dir), 'planner');
     expect(other.applied).toBeNull();
     expect(path.relative(dir, other.file)).toBe(path.join('runs', 'r2', 'result.md'));
+  });
+});
+
+describe('вопросы планировщика', () => {
+  it('сохраняются в change.yaml из последнего ответа и попадают в summary', async () => {
+    const { report, dir, rel, root } = setup('qs');
+    await report('researcher', 'research', RESEARCH('нужно обновить th-ui'));
+    write(root, `${rel}/proposal.md`, '## Зачем\nШторка.');
+    let out = await report('planner', 'propose', RESULT('утверждение', 'size: normal\n'));
+    expect(out.next).toMatchObject({ kind: 'gate', gate: 'proposal' });
+    let change = loadChange(dir);
+    approveGate(change, 'proposal', 'dima');
+    saveChange(dir, change);
+    write(root, `${rel}/specs/home-page.yml`, 'code: home-page\nadded:\n  Шторка:\n    - assert: Форма открывается в шторке\n');
+    write(root, `${rel}/design.md`, '## Общая картина\nшторка');
+    write(root, `${rel}/tasks.md`, '## 1\n- [ ] 1.1 Сделать\n');
+    out = await report('planner', 'plan', RESULT('готово', 'questions:\n  - { id: Q1, priority: P1, text: "Ширина шторки?" }\n  - { id: Q2, priority: P2, text: "Анимация?" }\n'));
+    expect(out.accepted).toBe(true);
+    change = loadChange(dir);
+    expect(change.questions).toEqual([
+      { id: 'Q1', priority: 'P1', text: 'Ширина шторки?', run: 'r3' },
+      { id: 'Q2', priority: 'P2', text: 'Анимация?', run: 'r3' },
+    ]);
+    expect(out.summary).toContain('Вопросы: Q1 (P1), Q2 (P2). Дальше: гейт plan.');
+    // Следующий ответ планировщика заменяет список
+    approveGate(change, 'plan', 'dima', undefined, { Q1: 'B' });
+    saveChange(dir, change);
+    expect(loadChange(dir).gates.plan?.answers).toEqual({ Q1: 'B' });
   });
 });

@@ -122,6 +122,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     'Не вызывать других агентов и не расширять объём задачи.',
     'Не менять истину спецификаций: только дельты в specs/ изменения.',
     'Соблюдать соглашения проекта из conventions.md и правила проекта из списка rules.',
+    'Журнал log.md из files.log: запись [CODE] сильнее факта из evidence или раннего артефакта, если она появилась позже. Опровергнутый факт фиксируй командой из commands.log, evidence не правь; противоречие утверждённому артефакту это блокер категории «артефакт».',
   ];
   if (role === 'implementer' && change.protected.length > 0) {
     constraints.push(`Защищённые файлы, менять запрещено: ${change.protected.join(', ')}`);
@@ -176,6 +177,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
       specList: 'sbox spec list --json',
       specShow: 'sbox spec show <capability-id> --json',
       changeset: `sbox changeset show --change ${change.id} --json`,
+      log: `sbox log add --change ${change.id} --tag CODE "<факт с путём>"`,
       browser: 'sbox-browser goto <url> | snapshot | click <eN|селектор> | fill <eN> <текст> | text | console --errors | requests | screenshot (вход человека: sbox-browser login <url> --profile <имя>; справка: sbox-browser --help)',
     },
     rolePrompt: loadRoleText(root, role),

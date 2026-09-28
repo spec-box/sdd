@@ -49,11 +49,13 @@ export function registerProtocol(program: Command): void {
         if (step.kind === 'gate') {
           const states = artifactStates(loadWorkflow(ctx.root), ctx.change, ctx.dir);
           const review = states.filter((s) => s.existing.length > 0).map((s) => ({ id: s.id, files: s.existing.map((f) => toPosix(path.relative(ctx.root, f))) }));
-          const questions = pendingQuestions(ctx.change);
-          // Расхождения между запросом, evidence и proposal человек видит до утверждения (docs/design.md, раздел 5).
+          // Вопросы планировщика и расхождения между запросом, evidence и proposal человек видит до утверждения (docs/design.md, раздел 5).
+          const questions = ctx.change.questions.map((q) => ({ id: q.id, priority: q.priority, text: q.text }));
           const conflicts = ctx.change.conflicts;
-          emit(g, { kind: 'gate', gate: step.gate, phase: step.phase, review, questions, conflicts, approve: `sbox approve ${step.gate} --change ${ctx.change.id} --by <user>`, reject: `sbox reject ${step.gate} --change ${ctx.change.id} --comment "<замечание>"` }, (d) =>
-            [`Гейт ${d.gate}: нужно решение человека.`, 'Посмотрите:', ...d.review.flatMap((r) => r.files.map((f) => `  ${f}`)), ...(d.questions.length ? ['Вопросы:', ...d.questions.map((q) => `  ${q}`)] : []), ...(d.conflicts.length ? ['Расхождения:', ...d.conflicts.map(formatConflict)] : []), `Утвердить: ${d.approve}`, `Отклонить: ${d.reject}`].join('\n'),
+          const approve = `sbox approve ${step.gate} --change ${ctx.change.id} --by <user>`;
+          const answer = questions.length ? `${approve} --answer ${questions.map((q) => `${q.id}=<вариант>`).join(' ')}` : null;
+          emit(g, { kind: 'gate', gate: step.gate, phase: step.phase, review, questions, conflicts, approve, answer, reject: `sbox reject ${step.gate} --change ${ctx.change.id} --comment "<замечание>"` }, (d) =>
+            [`Гейт ${d.gate}: нужно решение человека.`, 'Посмотрите:', ...d.review.flatMap((r) => r.files.map((f) => `  ${f}`)), ...(d.questions.length ? ['Вопросы:', ...d.questions.map((q) => `  ${q.id} (${q.priority}): ${q.text}`)] : []), ...(d.conflicts.length ? ['Расхождения:', ...d.conflicts.map(formatConflict)] : []), `Утвердить: ${d.approve}`, ...(d.answer ? [`С ответами: ${d.answer}`] : []), `Отклонить: ${d.reject}`].join('\n'),
           );
           return;
         }
@@ -165,11 +167,6 @@ function formatConflict(c: Conflict): string {
   const head = `  ${c.id} [${c.kind}, ${c.subject}] ${c.text}`;
   const tail = [c.evidence ? `факты: ${c.evidence}` : '', c.decision ? `решение: ${c.decision}` : '', c.reason ? `причина: ${c.reason}` : ''].filter(Boolean).join('; ');
   return tail ? `${head} (${tail})` : head;
-}
-
-function pendingQuestions(change: { runs: { role: string; result?: string }[] }): string[] {
-  // Вопросы planner лежат в его последнем ответе; для человека их достаточно показать ссылкой на design.md.
-  return [];
 }
 
 export { fs };

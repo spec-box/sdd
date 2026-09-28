@@ -132,6 +132,10 @@ export async function applyReport(input: ReportInput): Promise<ReportOutcome> {
     // Противоречия запросу из «Разбора запроса» человек видит на гейте proposal (docs/design.md, раздел 5).
     replaceConflicts(change, role, (result.request ?? []).filter((r) => r.status === 'противоречит').map((r) => ({ kind: 'противоречие' as const, subject: 'запрос' as const, role, run: runId, text: r.quote, ...(r.evidence ? { evidence: r.evidence } : {}) })));
   }
+  if (role === 'planner') {
+    // Вопросы планировщика живут в change.yaml до его следующего ответа: гейт plan показывает их человеку.
+    change.questions = (result.questions ?? []).map((q) => ({ id: q.id, priority: q.priority, text: q.text, run: runId }));
+  }
   if (role === 'planner' && phase === 'propose') {
     if (result.size) change.size = result.size;
     if (result.skip_specs !== undefined) {
@@ -488,6 +492,7 @@ export function reportSummary(s: SummaryInput): string {
   const artifacts = summaryArtifacts(s.root, s.dir, s.change, s.role, s.phase, s.runId);
   if (artifacts.length > 0) parts.push(`Артефакты: ${artifacts.join(', ')}.`);
   if (s.change.conflicts.length > 0) parts.push(`Расхождения: ${s.change.conflicts.map((c) => c.id).join(', ')}.`);
+  if (s.change.questions.length > 0) parts.push(`Вопросы: ${s.change.questions.map((q) => `${q.id} (${q.priority})`).join(', ')}.`);
   if (s.result.blocker && s.result.blocker.category !== 'нет') parts.push(`Блокер (${s.result.blocker.category})${s.result.blocker.message ? `: ${s.result.blocker.message}` : ''}.`);
   parts.push(describeNext(s.next));
   return parts.join(' ');

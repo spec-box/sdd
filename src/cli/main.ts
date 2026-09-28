@@ -15,6 +15,7 @@ import { registerCi } from './commands/ci.js';
 import { registerPrompt } from './commands/prompt.js';
 import { registerMetrics } from './commands/metrics.js';
 import { registerWiring } from './commands/wiring.js';
+import { registerLog } from './commands/log.js';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -39,6 +40,7 @@ export function buildProgram(): Command {
   registerPrompt(program);
   registerMetrics(program);
   registerWiring(program);
+  registerLog(program);
   return program;
 }
 

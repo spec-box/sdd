@@ -18,13 +18,13 @@ export interface HostInstallResult {
 export function installHostMaterials(root: string, target: string, config?: Config): HostInstallResult {
   if (!isHostTarget(target)) throw new SboxError('HOST_UNKNOWN', `Неизвестный хост ${target}; доступны ${HOST_TARGETS.join(' и ')}.`);
   const skills = loadSkills(root);
-  const codex = target === 'codex' ? codexMaterials(root, config, skills) : new Map<string, string>();
+  const codex = target === 'codex' ? codexMaterials(root, config) : new Map<string, string>();
   const files = installSkills(root, target, skills);
   const notes: string[] = [];
   let next: string;
   switch (target) {
     case 'claude':
-      files.push(...installClaudeAgents(root, config, skills));
+      files.push(...installClaudeAgents(root, config));
       next = 'В Claude Code: `/sbox-run` после `sbox change new <id> --title "..." --request "..."`.';
       break;
     case 'codex':

@@ -4,7 +4,7 @@ description: {{description}}
 tools: {{tools}}
 model: {{model}}
 effort: {{effort}}
-{{skills}}---
+---
 
 Ты выполняешь роль {{role}} инструмента @spec-box/sdd. Во входном сообщении путь к JSON-пакету (`packet`). Прочитай пакет целиком: там цель, допущенные файлы, ограничения, правила проекта, инструкции к артефактам и путь `resultFile`.
 

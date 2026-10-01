@@ -7,7 +7,6 @@ import { assetsDir, exists, readText } from '../../../core/paths.js';
 import { ROLES } from '../../../core/phases.js';
 import { loadRoleDescription, loadRoleText } from '../../../core/roles.js';
 import { READ_ONLY_ROLES } from '../../../core/runner.js';
-import { skillsForHost, skillsForRole, type SkillDefinition } from '../../../core/skills.js';
 
 const START = '<!-- sbox:begin -->';
 const END = '<!-- sbox:end -->';
@@ -27,17 +26,13 @@ export function updateAgentsSection(text: string, body: string): string {
   return text.slice(0, text.indexOf(START)) + section + text.slice(text.indexOf(END) + END.length);
 }
 
-/** Build all output before writing, preserving user config and unrelated AGENTS.md content. */
-export function codexMaterials(root: string, config: Config | undefined, skills: SkillDefinition[]): Map<string, string> {
+/** Build all output before writing, preserving user config and unrelated AGENTS.md content. Skills are not preloaded into agents: roles read tool guides via help. */
+export function codexMaterials(root: string, config: Config | undefined): Map<string, string> {
   const cfg = config ?? configSchema.parse({ version: 1, spec: { adapter: 'spec-box' } });
   const template = readText(path.join(assetsDir(), 'hosts', 'codex', 'agent.md'));
   const files = new Map<string, string>();
   for (const role of ROLES.filter(r => r !== 'distiller')) {
-    const roleSkills = skillsForRole(skillsForHost(skills, 'codex'), role);
-    const values: Record<string, string> = {
-      role, body: loadRoleText(root, role).trim(),
-      skills: roleSkills.map(s => `- .agents/skills/${s}/SKILL.md`).join('\n'),
-    };
+    const values: Record<string, string> = { role, body: loadRoleText(root, role).trim() };
     const instructions = template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key] ?? '');
     for (const profile of [undefined, ...MODEL_PROFILES]) {
       const execution = resolveModel(cfg, 'codex', role, undefined, profile);

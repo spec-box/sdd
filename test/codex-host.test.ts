@@ -28,7 +28,8 @@ describe('материалы Codex', () => {
     expect(agent(root, 'sbox-reviewer-complex').sandbox_mode).toBe('read-only');
     const prompt = agent(root, 'sbox-planner-complex').developer_instructions!;
     expect(prompt).toContain('C:\\files');
-    expect(prompt).toContain('.agents/skills/local-review/SKILL.md');
+    expect(prompt).not.toContain('.agents/skills/'); // скиллы не предзагружаются: роль читает руководство через help
+    expect(prompt).toContain('sbox help');
     expect(prompt).not.toContain('claude-only');
     expect(prompt).toContain('сам этот файл не записывай');
     expect(fs.existsSync(path.join(root, '.agents/skills/claude-only'))).toBe(false);

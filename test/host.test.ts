@@ -22,7 +22,7 @@ describe('host: скиллы из единого источника', () => {
     expect(skillsForRole(skills, 'planner')).toEqual(['sbox-contract', 'sbox-wiki']);
   });
 
-  it('claude: копирует скиллы без изменений и подключает их агентам полем skills', () => {
+  it('claude: копирует скиллы без изменений, агенты без предзагрузки скиллов', () => {
     const root = tempProject('spec-box-project', { git: false });
     const result = installHostMaterials(root, 'claude', loadConfig(root));
     const rel = result.files.map((f) => path.relative(root, f));
@@ -31,12 +31,15 @@ describe('host: скиллы из единого источника', () => {
       expect(fs.readFileSync(path.join(root, SKILL_LAYOUT.claude(name)), 'utf8')).toBe(fs.readFileSync(path.join(assetsDir(), 'skills', `${name}.md`), 'utf8'));
     }
     for (const role of ['verifier', 'tester', 'researcher']) {
-      expect(fs.readFileSync(path.join(root, `.claude/agents/sbox-${role}.md`), 'utf8')).toContain('effort: medium\nskills:\n  - sbox-browser\n  - sbox-contract\n  - sbox-wiki\n---');
+      const agent = fs.readFileSync(path.join(root, `.claude/agents/sbox-${role}.md`), 'utf8');
+      expect(agent).toContain('effort: medium\n---');
+      expect(agent).not.toContain('skills:');
+      expect(agent).toContain('sbox-browser help'); // справка по требованию вместо предзагрузки
     }
     for (const role of ['planner', 'implementer', 'reviewer', 'challenger']) {
       const agent = fs.readFileSync(path.join(root, `.claude/agents/sbox-${role}.md`), 'utf8');
-      expect(agent).toContain('skills:\n  - sbox-contract\n  - sbox-wiki');
-      expect(agent).toContain(`\neffort: ${role === 'implementer' ? 'medium' : 'high'}\nskills:`);
+      expect(agent).not.toContain('skills:');
+      expect(agent).toContain(`\neffort: ${role === 'implementer' ? 'medium' : 'high'}\n---`);
     }
     expect(result.notes).toEqual([]);
     expect(result.next).toMatch(/Claude Code/);
@@ -58,6 +61,9 @@ describe('host: скиллы из единого источника', () => {
       expect(fs.readFileSync(path.join(root, SKILL_LAYOUT.codex(name)), 'utf8')).toBe(fs.readFileSync(path.join(assetsDir(), 'skills', `${name}.md`), 'utf8'));
     }
     expect(result.next).toMatch(/Codex/);
+    const toml = fs.readFileSync(path.join(root, '.codex/agents/sbox-verifier.toml'), 'utf8');
+    expect(toml).not.toContain('.agents/skills/');
+    expect(toml).toContain('sbox-browser help');
     expect(fs.existsSync(path.join(root, '.claude'))).toBe(false);
     expect(fs.existsSync(path.join(root, '.codex/config.toml'))).toBe(false);
     expect(() => installHostMaterials(root, 'cursor')).toThrow(/HOST_UNKNOWN|Неизвестный хост/);
@@ -73,8 +79,8 @@ describe('host: скиллы из единого источника', () => {
     expect(skillsForRole(skills, 'planner')).toEqual(['release-notes', 'sbox-contract', 'sbox-wiki']);
     installHostMaterials(root, 'claude', loadConfig(root));
     expect(fs.readFileSync(path.join(root, '.claude/skills/sbox-browser/SKILL.md'), 'utf8')).toContain('# Наш регламент');
-    expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-planner.md'), 'utf8')).toContain('skills:\n  - release-notes\n  - sbox-contract\n  - sbox-wiki\n---');
-    expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-tester.md'), 'utf8')).toContain('skills:\n  - sbox-contract\n  - sbox-wiki');
+    expect(fs.readFileSync(path.join(root, '.claude/skills/release-notes/SKILL.md'), 'utf8')).toContain('# Заметки');
+    expect(fs.readFileSync(path.join(root, '.claude/agents/sbox-planner.md'), 'utf8')).not.toContain('skills:');
   });
 
   it('инструменты агентов берутся из runner.claude конфига', () => {

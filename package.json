@@ -1,6 +1,6 @@
 {
   "name": "@spec-box/sdd",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "@spec-box/sdd: автономная реализация продуктовых фич ИИ-агентами",
   "type": "module",
   "license": "MIT",

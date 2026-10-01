@@ -24,6 +24,7 @@ cd <репозиторий продукта>     # spec-box (.tms.json) или O
 sbox init --host claude       # .sbox/config.yaml, шаблоны .sbox/project/*.md, .gitignore, скиллы и агенты Claude Code
 # заполнить .sbox/project/*.md
 sbox doctor                   # структурная проверка документации, спецификаций и сред запуска
+sbox help                     # справка для агентов и людей: указатель тем и руководства инструментов (sbox-contract help, sbox-wiki help, sbox-browser help)
 sbox change new add-search --title "Поиск по каталогу" --request "Добавить поле поиска на главную"
 sbox next --change add-search # пакет для первой роли (researcher)
 ```
@@ -39,7 +40,7 @@ src/core/        доменная модель, конфиг, состояние
 src/adapters/    spec/spec-box, spec/openspec — истина и дельты в двух форматах; runner/claude, runner/codex — среды агентов;
                  repo/github, repo/local — хостинг репозитория; host/skills — раскладки скиллов по хостам, host/claude — агенты Claude Code
 src/cli/         команды commander: init, doctor, host, change, next, report, approve, reject,
-                 status, instructions, validate, archive, log
+                 status, instructions, validate, archive, log, help
 src/contract/    sbox-contract: модель поведения, конфигурация, поиск, дельты и применение
 src/wiki/        sbox-wiki: индекс и кеш Markdown, поиск, страницы, ссылки и валидация
 src/browser/     sbox-browser: демон с Chrome на сессию, клиент через локальный сокет, команды страницы,

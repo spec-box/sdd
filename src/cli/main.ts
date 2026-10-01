@@ -17,6 +17,8 @@ import { registerPrompt } from './commands/prompt.js';
 import { registerMetrics } from './commands/metrics.js';
 import { registerWiring } from './commands/wiring.js';
 import { registerLog } from './commands/log.js';
+import { attachHelpCommand } from './help-command.js';
+import { emit } from './output.js';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -43,6 +45,7 @@ export function buildProgram(): Command {
   registerModels(program);
   registerWiring(program);
   registerLog(program);
+  attachHelpCommand(program, { cwd: () => program.opts().cwd as string | undefined, emit: (payload, human) => emit({ json: Boolean(program.opts().json) }, payload, () => human) });
   return program;
 }
 

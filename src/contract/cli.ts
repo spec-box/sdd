@@ -5,6 +5,7 @@ import { contractContext, initContract } from './context.js';
 import { ContractService, contractIndex } from './service.js';
 import { packageVersion } from '../core/paths.js';
 import { SboxError } from '../core/errors.js';
+import { attachHelpCommand } from '../cli/help-command.js';
 import { hasErrors } from '../core/diagnostics.js';
 
 export function buildProgram(): Command {
@@ -60,6 +61,7 @@ export function buildProgram(): Command {
       emit(await svc.apply(deltaDir(opts.delta), { ifMatch: opts.ifMatch }));
     }
   });
+  attachHelpCommand(program, { topic: 'contract', cwd: () => program.opts().cwd as string | undefined, emit: (payload, human) => emit(program.opts().json ? payload : human) });
   return program;
 }
 export async function main(argv: string[]): Promise<void> {

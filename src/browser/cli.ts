@@ -4,6 +4,7 @@ import readline from 'node:readline';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 import { intOption } from '../cli/args.js';
 import { emit, emitError } from '../cli/output.js';
+import { attachHelpCommand } from '../cli/help-command.js';
 import { SboxError } from '../core/errors.js';
 import { packageVersion } from '../core/paths.js';
 import { budgetFor, sendCommand, spawnDaemon, stopSession, type LaunchSpec, type StopResult } from './client.js';
@@ -501,6 +502,7 @@ export function buildBrowserProgram(): Command {
   program.command('auth <user> <password>').description('HTTP Basic-аутентификация для текущей вкладки').action(action(async (g, user: string, password: string) => emit(g, await send(g, 'auth', { username: user, password }), (d) => `basic auth: ${String(d.auth)}`)));
   program.command('headers <json>').description('Дополнительные HTTP-заголовки для текущей вкладки, JSON-объект').action(action(async (g, json: string) => emit(g, await send<{ headers: string[] }>(g, 'headers', { headers: JSON.parse(json) as Record<string, string> }), (d) => `заголовки: ${d.headers.join(', ')}`)));
 
+  attachHelpCommand(program, { topic: 'browser', cwd: () => program.opts().cwd as string | undefined, emit: (payload, human) => emit({ json: Boolean(program.opts().json) }, payload, () => human) });
   return program;
 }
 

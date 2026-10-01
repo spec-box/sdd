@@ -4,7 +4,7 @@ import path from 'node:path';
 import { loadChange, runDir, saveChange, type Change } from './change.js';
 import { computeChangeSet, isGitRepo } from './changeset.js';
 import { acquireLock } from './lock.js';
-import { buildPacket, renderPrompt } from './packet.js';
+import { buildPacket, renderPrompt, packetFileJson } from './packet.js';
 import { nextStep, type NextStep, type Role } from './phases.js';
 import { applyReport, changesetExclude } from './report.js';
 import { READ_ONLY_ROLES, transportRetryAllowed, type AgentRunner, type RunResponse } from './runner.js';
@@ -109,7 +109,7 @@ export async function runChange(opts: RunOptions): Promise<RunSummary> {
       const packet = buildPacket({ root, config, change, dir, role, phase: step.phase, adapter, truthSources, runner: runner.name === 'codex' ? 'codex' : runner.name === 'claude' ? 'claude' : config.runner.default });
       const rdir = runDir(dir, packet.runId);
       fs.mkdirSync(rdir, { recursive: true });
-      const packetJson = JSON.stringify(packet, null, 2);
+      const packetJson = packetFileJson(packet);
       writeText(path.join(rdir, 'packet.json'), packetJson);
       const prompt = renderPrompt(packet);
       const { model, effort, profile } = packet.execution;

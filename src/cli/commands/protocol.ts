@@ -4,7 +4,7 @@ import { Option, type Command } from 'commander';
 import { saveChange, type Change, type Conflict } from '../../core/change.js';
 import { GATES, type Gate } from '../../core/config.js';
 import { SboxError } from '../../core/errors.js';
-import { buildPacket } from '../../core/packet.js';
+import { buildPacket, packetFileJson } from '../../core/packet.js';
 import { exists, readText, toPosix, writeText } from '../../core/paths.js';
 import { approveGate, isRoleName, nextStep, rejectGate, ROLE_BY_PHASE, type Role } from '../../core/phases.js';
 import { applyReport, appliedOutcome, resolveReportFile, type ReportOutcome } from '../../core/report.js';
@@ -34,7 +34,7 @@ export function registerProtocol(program: Command): void {
           const truthSources = (await ctx.adapter.readTruth()).map((c) => c.source ?? c.id);
           const packet = buildPacket({ ...ctx, role: step.role, phase: step.phase, truthSources, runner: opts.runner });
           const packetFile = path.join(ctx.dir, 'runs', packet.runId, 'packet.json');
-          writeText(packetFile, JSON.stringify(packet, null, 2));
+          writeText(packetFile, packetFileJson(packet));
           const rel = toPosix(path.relative(ctx.root, packetFile));
           // Отчёт сдаёт оркестратор или раннер, не роль: команда не входит в пакет и не требует --file (docs/design.md, раздел 12).
           const brief = { kind: 'role' as const, execution: packet.execution, role: step.role, phase: step.phase, runId: packet.runId, packetFile: rel, resultFile: packet.resultFile, objective: packet.objective, feedback: packet.feedback, report: `sbox report --change ${ctx.change.id} --role ${step.role} --json` };

@@ -51,13 +51,7 @@ export interface RolePacket {
   rolePrompt: string;
 }
 
-const RESULT_FORMAT = `Ответ заканчивается блоком:
-\`\`\`yaml
-# sbox-result
-status: готово | утверждение | заблокировано
-blocker: { category: артефакт | тесты | реализация | внешний | пользователь | нет, artifact: <id>, message: <текст> }
-\`\`\`
-Дополнительные поля по роли: request (researcher: разбор запроса дословными цитатами со статусом подтверждено | противоречит | не проверено), complexity, size и deviations (planner на propose: отступления proposal от запроса или evidence с решением и причиной), questions (planner на plan), findings (reviewer), checks и gaps (verifier), dispositions и delivery_narrative (reviewer в фазе review), protected (tester), verified (implementer, verifier).`;
+const RESULT_FORMAT = 'Ответ заканчивается блоком `# sbox-result` по образцу из раздела «Содержимое resultFile» твоей роли; поля всех ролей и статусы: `sbox help result`.';
 
 const OBJECTIVES: Partial<Record<`${Role}:${Phase}`, string>> = {
   'researcher:research': 'Собрать Evidence Pack по запросу: текущее поведение, затронутые capability и код, границы, доказательства, пробелы. Записать в evidence/research.md.',
@@ -189,7 +183,8 @@ export function buildPacket(ctx: PacketContext): RolePacket {
       contractDiff: `sbox-contract diff --delta ${quote(rel(path.join(dir, 'specs')))} --preview --json`,
       changeset: `sbox changeset show --change ${change.id} --json`,
       log: `sbox log add --change ${change.id} --tag CODE "<факт с путём>"`,
-      browser: 'sbox-browser goto <url> | snapshot | click <eN|селектор> | fill <eN> <текст> | text | console --errors | requests | screenshot (вход человека: sbox-browser login <url> --profile <имя>; справка: sbox-browser --help)',
+      browser: 'sbox-browser goto <url> | snapshot | click <eN> | fill <eN> <текст> | text | console --errors | requests | screenshot; руководство: sbox-browser help',
+      help: 'sbox help [тема] (указатель тем: result, log, packet, contract, wiki, browser) | sbox-contract help | sbox-wiki help | sbox-browser help',
     },
     rolePrompt: loadRoleText(root, role),
   };
@@ -241,4 +236,11 @@ export function renderPrompt(packet: RolePacket): string {
     '',
     packet.execution.runner === 'codex' ? '' : `Запиши полный ответ (Markdown и завершающий блок \`# sbox-result\`) в файл \`${packet.resultFile}\` и продублируй его в последнем сообщении.`,
   ].join('\n');
+}
+
+/** Содержимое packet.json: без текста роли, который агент хоста уже получил системным промптом, а headless-раннер добавляет в промпт сам (renderPrompt). */
+export function packetFileJson(packet: RolePacket): string {
+  const data: Record<string, unknown> = { ...packet };
+  delete data.rolePrompt;
+  return JSON.stringify(data, null, 2);
 }

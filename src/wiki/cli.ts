@@ -5,6 +5,7 @@ import { WikiStore, pageSummary } from './store.js';
 import { findProjectRoot, packageVersion } from '../core/paths.js';
 import { loadConfig } from '../core/config.js';
 import { SboxError } from '../core/errors.js';
+import { attachHelpCommand } from '../cli/help-command.js';
 
 export function buildProgram(): Command {
   const program = new Command().name('sbox-wiki').description('Индекс, поиск и страницы локальной Markdown-wiki').version(packageVersion())
@@ -33,6 +34,7 @@ export function buildProgram(): Command {
     const diagnostics = store().validate(); emit({ diagnostics });
     if (diagnostics.some(d => d.severity === 'error')) process.exitCode = 1;
   });
+  attachHelpCommand(program, { topic: 'wiki', cwd: () => program.opts().cwd as string | undefined, emit: (payload, human) => emit(program.opts().json ? payload : human) });
   return program;
 }
 export async function main(argv: string[]): Promise<void> {

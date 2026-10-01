@@ -57,6 +57,7 @@ describe('headless-цикл', () => {
     expect(change.runs.map((r) => r.role)).toEqual(['researcher', 'planner']);
     expect(change.settled).toBe(true);
     expect(fs.existsSync(path.join(dir, 'runs', 'r1', 'receipt.json'))).toBe(true);
+    expect(JSON.parse(read(root, `${rel}/runs/r1/packet.json`)).rolePrompt).toBeUndefined(); // текст роли живёт в промпте, не в файле
     const receipt = JSON.parse(read(root, `${rel}/runs/r1/receipt.json`));
     expect(receipt.runner).toBe('fake');
     expect(receipt.packet_sha256).toHaveLength(64);

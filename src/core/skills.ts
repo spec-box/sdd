@@ -54,11 +54,11 @@ function readDir(dir: string, source: SkillDefinition['source']): SkillDefinitio
     .map((f) => parseSkill(readText(path.join(dir, f)), path.join(dir, f), source));
 }
 
-/** Встроенные скиллы из assets/skills; файл .sbox/skills/<имя>.md заменяет встроенный или добавляет новый. */
-export function loadSkills(root: string): SkillDefinition[] {
+/** Встроенные скиллы из assets/skills; файл .sbox/skills/<имя>.md заменяет встроенный или добавляет новый (root null: только встроенные, например для справки вне проекта). */
+export function loadSkills(root: string | null): SkillDefinition[] {
   const byName = new Map<string, SkillDefinition>();
   for (const s of readDir(path.join(assetsDir(), 'skills'), 'builtin')) byName.set(s.name, s);
-  for (const s of readDir(path.join(sboxDir(root), 'skills'), 'project')) byName.set(s.name, s);
+  if (root) for (const s of readDir(path.join(sboxDir(root), 'skills'), 'project')) byName.set(s.name, s);
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 

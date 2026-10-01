@@ -3,6 +3,9 @@ name: sbox-wiki
 description: Поиск и ведение локальной Markdown-wiki проекта через sbox-wiki. Используй для поиска знаний об области кода, чтения и обновления страниц wiki и проверки ссылок между ними.
 metadata:
   roles: [researcher, planner, tester, implementer, verifier, reviewer, challenger, distiller]
+  commands:
+    - sbox-wiki search "<задача>" --path <src/module> --json
+    - sbox-wiki get <id> --json
 ---
 
 # sbox-wiki

@@ -3,6 +3,10 @@ name: sbox-browser
 description: Проверка веб-интерфейса через управляемый Chrome командой sbox-browser — открыть страницу, снять дерево элементов, кликать и вводить, читать текст, консоль и сетевые ошибки, делать скриншоты; вход в приложение выполняет человек. Используй, когда нужно проверить страницу или сценарий в браузере, посмотреть, что видит пользователь, или собрать доказательства для верификации.
 metadata:
   roles: [researcher, tester, verifier]
+  commands:
+    - sbox-browser goto <url>
+    - sbox-browser snapshot
+    - sbox-browser console --errors
 ---
 
 # sbox-browser

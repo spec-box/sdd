@@ -3,6 +3,10 @@ name: sbox-contract
 description: "Чтение, поиск и изменение контракта поведения продукта через sbox-contract: требования, сценарии, дельты spec-box или OpenSpec. Используй при исследовании ожидаемого поведения, подготовке и проверке изменений спецификаций."
 metadata:
   roles: [researcher, planner, tester, implementer, verifier, reviewer, challenger]
+  commands:
+    - sbox-contract index --json
+    - sbox-contract show <id> --json
+    - sbox-contract search "<запрос>" --json
 ---
 
 # sbox-contract

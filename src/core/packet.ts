@@ -2,6 +2,8 @@ import { resolveModel, hostAgentName } from './model-policy.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadRoleText } from './roles.js';
+import { helpCommandFor } from './help.js';
+import { loadSkills } from './skills.js';
 import { artifactInstructions, artifactStates, loadWorkflow, pendingArtifacts, type ArtifactInstructions } from './schema.js';
 import { applicableDecisions, docsDir, docsForRole, loadDecisions } from './project-docs.js';
 import { readChangeSet } from './changeset.js';
@@ -47,8 +49,16 @@ export interface RolePacket {
   /** Кандидаты подключения по образцу из design.md для фаз verify и review; null, если образец не объявлен. */
   wiring: WiringResult | null;
   context: string | null;
-  commands: Record<string, string>;
+  /** Указатель инструментов роли: когда нужен, команда справки и самые частые вызовы; подробности роль читает через help. */
+  tools: PacketTool[];
   rolePrompt: string;
+}
+
+export interface PacketTool {
+  tool: string;
+  when: string;
+  help: string;
+  commands: string[];
 }
 
 const RESULT_FORMAT = 'Ответ заканчивается блоком `# sbox-result` по образцу из раздела «Содержимое resultFile» твоей роли; поля всех ролей и статусы: `sbox help result`.';
@@ -122,7 +132,7 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     'Не вызывать других агентов и не расширять объём задачи.',
     'Не менять истину спецификаций: только дельты в specs/ изменения.',
     'Соблюдать соглашения проекта из conventions.md и правила проекта из списка rules.',
-    'Журнал log.md из files.log: запись [CODE] сильнее факта из evidence или раннего артефакта, если она появилась позже. Опровергнутый факт фиксируй командой из commands.log, evidence не правь; противоречие утверждённому артефакту это блокер категории «артефакт».',
+    'Журнал log.md из files.log: запись [CODE] сильнее факта из evidence или раннего артефакта, если она появилась позже. Опровергнутый факт фиксируй командой `sbox log add` из tools, evidence не правь; противоречие утверждённому артефакту это блокер категории «артефакт».',
   ];
   if (role === 'implementer' && change.protected.length > 0) {
     constraints.push(`Защищённые файлы, менять запрещено: ${change.protected.join(', ')}`);
@@ -170,24 +180,38 @@ export function buildPacket(ctx: PacketContext): RolePacket {
     verificationReport: role === 'reviewer' && phase === 'review' ? change.verification : null,
     wiring,
     context: config.context ?? null,
-    // Команды отчёта здесь нет: report сдаёт оркестратор или раннер, роль только пишет resultFile (docs/design.md, раздел 12).
-    commands: {
-      status: `sbox status --change ${change.id} --json`,
-      instructions: `sbox instructions <artifact> --change ${change.id} --json`,
-      validate: `sbox validate --change ${change.id} --json`,
-      specList: 'sbox-contract index --json',
-      wikiIndex: 'sbox-wiki index --json',
-      wikiSearch: 'sbox-wiki search <query> --json',
-      wikiGet: 'sbox-wiki get <id> --json',
-      specShow: 'sbox-contract show <capability-id> --json',
-      contractDiff: `sbox-contract diff --delta ${quote(rel(path.join(dir, 'specs')))} --preview --json`,
-      changeset: `sbox changeset show --change ${change.id} --json`,
-      log: `sbox log add --change ${change.id} --tag CODE "<факт с путём>"`,
-      browser: 'sbox-browser goto <url> | snapshot | click <eN> | fill <eN> <текст> | text | console --errors | requests | screenshot; руководство: sbox-browser help',
-      help: 'sbox help [тема] (указатель тем: result, log, packet, contract, wiki, browser) | sbox-contract help | sbox-wiki help | sbox-browser help',
-    },
+    tools: packetTools(root, change, dir, role, phase),
     rolePrompt: loadRoleText(root, role),
   };
+}
+
+const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+
+/**
+ * Указатель инструментов (docs/design.md, раздел 5): процесс sbox всегда, остальные инструменты по metadata.roles скиллов,
+ * их частые команды из metadata.commands. Команды отчёта здесь нет: report сдаёт оркестратор или раннер.
+ */
+function packetTools(root: string, change: Change, dir: string, role: Role, phase: Phase): PacketTool[] {
+  const specsDir = shellQuote(toPosix(path.relative(root, path.join(dir, 'specs'))));
+  const sbox: PacketTool = {
+    tool: 'sbox',
+    when: 'состояние изменения, проверка артефактов и дельт, журнал изменения; темы справки: result, log, packet',
+    help: 'sbox help [тема]',
+    commands: [
+      `sbox status --change ${change.id} --json`,
+      `sbox validate --change ${change.id} --json`,
+      `sbox log add --change ${change.id} --tag CODE "<факт с путём>"`,
+      ...(role === 'planner' ? [`sbox instructions <artifact> --change ${change.id} --json`] : []),
+      ...(phase === 'verify' || phase === 'review' ? [`sbox changeset show --change ${change.id} --json`] : []),
+    ],
+  };
+  const extra: Record<string, string[]> = {
+    'sbox-contract': role === 'planner' || role === 'challenger' || role === 'verifier' || role === 'reviewer' ? [`sbox-contract diff --delta ${specsDir} --preview --json`] : [],
+  };
+  const skills = loadSkills(root)
+    .filter((s) => s.roles.includes(role))
+    .map((s) => ({ tool: s.name, when: s.description, help: helpCommandFor(s.name), commands: [...s.commands, ...(extra[s.name] ?? [])] }));
+  return [sbox, ...skills];
 }
 
 function verificationFor(role: Role): string {

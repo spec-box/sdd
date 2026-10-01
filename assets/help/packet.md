@@ -14,6 +14,6 @@ description: Пакет роли packet.json — что означают его 
 4. `instructions` — инструкции к артефактам этой фазы: шаблон, требования, путь записи `resolvedOutputPath`; `specAdapterInstructions` — формат дельт спецификаций.
 5. `changeset`, `verificationReport`, `wiring` — запечатанный диф, отчёт верификатора и кандидаты подключения нового модуля (фазы verify и review).
 6. `resultFile`, `resultFormat`, `stop` — куда писать ответ, как его завершать (`sbox help result`), когда остановиться.
-7. `commands` — готовые команды инструментов для этого изменения; `commands.help` ведёт к руководствам: `sbox-contract help`, `sbox-wiki help`, `sbox-browser help`.
+7. `tools` — инструменты, доступные роли: `when` говорит, когда инструмент нужен, `help` даёт команду руководства (`sbox help <тема>`, `sbox-contract help`, `sbox-wiki help`, `sbox-browser help`), `commands` перечисляет самые частые вызовы дословно; остальные команды читай в руководстве, когда инструмент понадобился.
 
 `change`, `role`, `phase`, `runId`, `execution` описывают сам запуск; `execution` это запрошенные модель и усилие, а не доказательство фактического запуска.

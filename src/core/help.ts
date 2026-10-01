@@ -23,6 +23,12 @@ const SKILL_PREFIX = 'sbox-';
 /** Темы, у которых есть собственный бинарник с командой help. */
 const TOOL_TOPICS = new Set(['browser', 'contract', 'wiki']);
 
+/** Команда справки для скилла: у инструмента свой бинарник (`sbox-browser help`), у остальных тема sbox (`sbox help <тема>`). */
+export function helpCommandFor(skillName: string): string {
+  const topic = skillName.startsWith(SKILL_PREFIX) ? skillName.slice(SKILL_PREFIX.length) : skillName;
+  return TOOL_TOPICS.has(topic) ? `${skillName} help` : `sbox help ${topic}`;
+}
+
 function firstHeading(body: string): string {
   const m = body.match(/^#\s+(.+)$/m);
   return m ? m[1]!.trim() : '';

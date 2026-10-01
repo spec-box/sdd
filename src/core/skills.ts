@@ -6,7 +6,7 @@ import { isRoleName, type Role } from './phases.js';
 import { parseDoc } from './project-docs.js';
 
 /**
- * Скилл хоста как данные: файл `<имя>.md` с фронтматтером (`name`, `description`, `metadata.roles`, `metadata.hosts`) и телом.
+ * Скилл хоста как данные: файл `<имя>.md` с фронтматтером (`name`, `description`, `metadata.roles`, `metadata.hosts`, `metadata.commands`) и телом.
  * Единый источник для всех хостов: адаптер хоста копирует файл в свою раскладку и подключает ролям из `metadata.roles`.
  */
 export interface SkillDefinition {
@@ -16,6 +16,8 @@ export interface SkillDefinition {
   roles: Role[];
   /** Хосты, для которых скилл имеет смысл; пусто — для всех. */
   hosts: string[];
+  /** Самые частые вызовы инструмента дословно: попадают в указатель tools пакета, остальное роль читает через help. */
+  commands: string[];
   text: string;
   source: 'builtin' | 'project';
   file: string;
@@ -42,7 +44,7 @@ export function parseSkill(text: string, file: string, source: SkillDefinition['
     if (!isRoleName(r)) throw new SboxError('BAD_SKILL', `Скилл ${file}: неизвестная роль «${r}» в metadata.roles.`);
     roles.push(r);
   }
-  return { name: expected, description: fm.description, roles, hosts: stringList(metadata.hosts, file, 'metadata.hosts'), text, source, file };
+  return { name: expected, description: fm.description, roles, hosts: stringList(metadata.hosts, file, 'metadata.hosts'), commands: stringList(metadata.commands, file, 'metadata.commands'), text, source, file };
 }
 
 function readDir(dir: string, source: SkillDefinition['source']): SkillDefinition[] {

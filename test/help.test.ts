@@ -42,7 +42,31 @@ describe('файл пакета', () => {
     expect(file.rolePrompt).toBeUndefined();
     expect(file.objective).toBe(packet.objective);
     expect(file.resultFormat).toContain('sbox help result');
-    expect(file.commands.help).toContain('sbox help');
+    expect(file.commands).toBeUndefined();
+    expect(file.tools.map((t: { tool: string }) => t.tool)).toEqual(['sbox', 'sbox-browser', 'sbox-contract', 'sbox-wiki']);
+    expect(file.tools[0]).toMatchObject({ help: 'sbox help [тема]' });
+    expect(file.tools[1]).toMatchObject({ help: 'sbox-browser help', commands: ['sbox-browser goto <url>', 'sbox-browser snapshot', 'sbox-browser console --errors'] });
+    expect(file.tools[2].when).toContain('Используй');
     expect(renderPrompt(packet)).toContain('# Роль: researcher');
+  });
+});
+
+describe('указатель инструментов', () => {
+  it('зависит от роли и фазы, проектный скилл с ролями попадает в указатель со справкой sbox help', () => {
+    const root = tempProject();
+    const config = loadConfig(root);
+    const adapter = createSpecAdapter(root, config);
+    write(root, '.sbox/skills/release-notes.md', '---\nname: release-notes\ndescription: Как писать заметки к релизу\nmetadata:\n  roles: [planner]\n  commands: [cat docs/release.md]\n---\n\n# Заметки\n');
+    const { dir } = createChange(root, config, { id: 'tl', title: 'Т', request: 'r' });
+    const planner = buildPacket({ root, config, change: loadChange(dir), dir, role: 'planner', phase: 'plan', adapter, truthSources: [] });
+    expect(planner.tools.map((t) => t.tool)).toEqual(['sbox', 'release-notes', 'sbox-contract', 'sbox-wiki']);
+    expect(planner.tools[0]!.commands.some((c) => c.startsWith('sbox instructions'))).toBe(true);
+    expect(planner.tools.find((t) => t.tool === 'release-notes')).toMatchObject({ help: 'sbox help release-notes', commands: ['cat docs/release.md'] });
+    expect(planner.tools.find((t) => t.tool === 'sbox-contract')!.commands.some((c) => c.includes('diff --delta'))).toBe(true);
+    const verifier = buildPacket({ root, config, change: loadChange(dir), dir, role: 'verifier', phase: 'verify', adapter, truthSources: [] });
+    expect(verifier.tools[0]!.commands.some((c) => c.startsWith('sbox changeset show'))).toBe(true);
+    expect(verifier.tools.map((t) => t.tool)).toContain('sbox-browser');
+    const implementer = buildPacket({ root, config, change: loadChange(dir), dir, role: 'implementer', phase: 'implement', adapter, truthSources: [] });
+    expect(implementer.tools.map((t) => t.tool)).not.toContain('sbox-browser');
   });
 });

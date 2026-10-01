@@ -34,8 +34,9 @@ describe('журнал изменения', () => {
     expect(human.entry.by).toBe(process.env.USER ?? 'human');
     const packet = buildPacket({ root, config, change: loadChange(dir), dir, role: 'researcher', phase: 'research', adapter, truthSources: [] });
     write(root, `${rel}/runs/${packet.runId}/packet.json`, JSON.stringify(packet));
-    expect(packet.commands.log).toBe('sbox log add --change au --tag CODE "<факт с путём>"');
-    expect(packet.commands.report).toBeUndefined();
+    const sbox = packet.tools.find((t) => t.tool === 'sbox')!;
+    expect(sbox.commands).toContain('sbox log add --change au --tag CODE "<факт с путём>"');
+    expect(JSON.stringify(packet.tools)).not.toContain('sbox report');
     expect(packet.constraints.join(' ')).toContain('запись [CODE] сильнее');
     const role = appendLogEntry(dir, loadChange(dir), { tag: 'CODE', text: 'из пакета' });
     expect(role.entry.by).toBe('researcher r1');
